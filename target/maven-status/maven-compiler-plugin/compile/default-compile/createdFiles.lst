@@ -1,0 +1,8 @@
+com\cmsc818g\SmartWatchDevice$RecordHeartrate.class
+com\cmsc818g\SmartWatchDevice$RespondHeartrate.class
+com\cmsc818g\SmartWatchDevice$HeartrateRecorded.class
+com\cmsc818g\SmartWatchDevice$ReadHeartrate.class
+com\cmsc818g\SmartWatchDevice$Command.class
+com\cmsc818g\App.class
+com\cmsc818g\PdaSupervisor.class
+com\cmsc818g\SmartWatchDevice.class
