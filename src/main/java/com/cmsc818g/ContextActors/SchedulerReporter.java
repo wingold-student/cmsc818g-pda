@@ -14,13 +14,13 @@ import akka.actor.typed.javadsl.Behaviors;
 import akka.actor.typed.javadsl.Receive;
 
 // AbstractBehavior<What type of messages it will receive>
-public class SchedulerReporter extends AbstractBehavior<SchedulerReporter.Command> {
+public class SchedulerReporter extends AbstractBehavior<ReporterMessages.Command> {
 
     /**
      * Since we will want more than a single type of message, we'll create an
      * empty interface that all necessary command messages can implement
      */
-    public interface Command {}
+    public interface Command extends ReporterMessages.Command {}
 
     /**
      * This is just one type of command message we may receive. Another actor can
@@ -107,16 +107,19 @@ public class SchedulerReporter extends AbstractBehavior<SchedulerReporter.Comman
      * Behaviors define well, how an actor behaves. But their behavior can change in the middle
      * of execution. This is why we return it not only here, but after processing messages too.
      *  
-     * @param contextRepId This context reporter instance's identifier. Could be another other
+     * @param reporterId This context reporter instance's identifier. Could be another other
      *  type of grouping/way of identifying an instance of this actor.
      */
-    public static Behavior<Command> create(String contextRepId) {
-        return Behaviors.setup(context -> new SchedulerReporter(context, contextRepId));
+    public static Behavior<ReporterMessages.Command> create(String reporterId, String groupId) {
+        return Behaviors.setup(context -> new SchedulerReporter(context, reporterId, groupId));
     }
 
     // Just some instance variables
-    private final ActorContext<Command> context;
-    private final String contextRepId;
+    private final ActorContext<ReporterMessages.Command> context;
+
+    private final String reporterId;
+    private final String groupId;
+
     private Optional<String> curEvent;
 
     /**
@@ -124,13 +127,14 @@ public class SchedulerReporter extends AbstractBehavior<SchedulerReporter.Comman
      * @param context Not super clear what is within the context
      * @param contextRepId Some way of identifying this actor instance
      */
-    private SchedulerReporter(ActorContext<Command> context, String contextRepId) {
+    private SchedulerReporter(ActorContext<ReporterMessages.Command> context, String reporterId, String groupId) {
         super(context);
-        this.contextRepId = contextRepId;
+        this.reporterId = reporterId;
+        this.groupId = groupId;
         this.context = context;
         this.curEvent = Optional.empty();
 
-        context.getLog().info("Scheduler Reporter with id {} started", contextRepId);
+        context.getLog().info("Scheduler Reporter with id {}-{} started", reporterId, groupId);
     }
 
     /**
@@ -146,12 +150,12 @@ public class SchedulerReporter extends AbstractBehavior<SchedulerReporter.Comman
      */
     private Optional<Boolean> IsFreeAt(String dateTimeStr) {
         try {
-            this.context.getLog().info("Scheduler Reporter {} got date time str: {}", this.contextRepId, dateTimeStr);
+            this.context.getLog().info("Scheduler Reporter {} got date time str: {}", this.reporterId, dateTimeStr);
             LocalDateTime recvDateTime = LocalDateTime.parse(dateTimeStr);
             DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("MM-dd-yyyy HH:mm:ss");
             String recvDateTimeStr = recvDateTime.format(dateFormatter);
 
-            this.context.getLog().info("Scheduler Reporter {} created date time: {}", this.contextRepId, recvDateTimeStr);
+            this.context.getLog().info("Scheduler Reporter {} created date time: {}", this.reporterId, recvDateTimeStr);
 
             boolean isFree = this.curEvent.isEmpty();
             return Optional.of(isFree);
@@ -173,10 +177,11 @@ public class SchedulerReporter extends AbstractBehavior<SchedulerReporter.Comman
      * are other methods I don't know of yet too.
      */
     @Override
-    public Receive<Command> createReceive() {
+    public Receive<ReporterMessages.Command> createReceive() {
         return newReceiveBuilder()
             .onMessage(AskIsFreeAt.class, this::onAskIsFreeAt)
             .onMessage(AddToSchedule.class, this::onAddToSchedule)
+            .onMessage(ReporterMessages.Passivate.class, m -> Behaviors.stopped())
             .onSignal(PostStop.class, signal -> onPostStop())
             .build();
     }
@@ -190,7 +195,7 @@ public class SchedulerReporter extends AbstractBehavior<SchedulerReporter.Comman
      * @param msg The command which is asking if the user is free at a date and time
      * @return the behavior of this actor. It didn't change
      */
-    private Behavior<Command> onAskIsFreeAt(AskIsFreeAt msg) {
+    private Behavior<ReporterMessages.Command> onAskIsFreeAt(AskIsFreeAt msg) {
         msg.replyTo.tell(new RespondIsFreeAt(msg.requestId, this.IsFreeAt(msg.dateTimeStr)));
         return this;
     }
@@ -201,7 +206,7 @@ public class SchedulerReporter extends AbstractBehavior<SchedulerReporter.Comman
      * 
      * (Meaning this will fail upon a second AddToSchedule message)
      */
-    private Behavior<Command> onAddToSchedule(AddToSchedule msg) {
+    private Behavior<ReporterMessages.Command> onAddToSchedule(AddToSchedule msg) {
         Optional<Boolean> isFree = this.IsFreeAt(msg.dateTimeStr);
         boolean addedEvent = !isFree.isEmpty() && isFree.get();
 
@@ -217,7 +222,7 @@ public class SchedulerReporter extends AbstractBehavior<SchedulerReporter.Comman
      * What to do when shut down by a supervisor
      */
     private SchedulerReporter onPostStop() {
-        getContext().getLog().info("Scheduler reporter {} stopped", this.contextRepId);
+        getContext().getLog().info("Scheduler reporter {} stopped", this.reporterId);
         return this;
     }
 }
