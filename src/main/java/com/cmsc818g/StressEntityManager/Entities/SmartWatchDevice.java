@@ -1,4 +1,4 @@
-package com.cmsc818g;
+package com.cmsc818g.StressEntityManager.Entities;
 
 import akka.actor.typed.ActorRef;
 import akka.actor.typed.Behavior;
@@ -10,7 +10,7 @@ import akka.actor.typed.javadsl.Receive;
 
 import java.util.Optional;
 
-class SmartWatchDevice extends AbstractBehavior<SmartWatchDevice.Command> {
+public class SmartWatchDevice extends AbstractBehavior<SmartWatchDevice.Command> {
     public interface Command {}
 
     public static final class ReadHeartrate implements Command {

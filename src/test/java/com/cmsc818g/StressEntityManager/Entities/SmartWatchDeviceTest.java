@@ -1,4 +1,4 @@
-package com.cmsc818g;
+package com.cmsc818g.StressEntityManager.Entities;
 
 import akka.actor.testkit.typed.javadsl.TestKitJunitResource;
 import akka.actor.testkit.typed.javadsl.TestProbe;
