@@ -1,5 +1,6 @@
 package com.cmsc818g;
 
+import akka.actor.typed.ActorSystem;
 import akka.actor.typed.Behavior;
 import akka.actor.typed.PostStop;
 import akka.actor.typed.javadsl.AbstractBehavior;
@@ -26,5 +27,10 @@ public class PdaSupervisor extends AbstractBehavior<Void> {
     private PdaSupervisor onPostStop() {
         getContext().getLog().info("PDA Application stopped");
         return this;
+    }
+
+    public static void main( String[] args )
+    {
+        ActorSystem.create(PdaSupervisor.create(), "pda-system");
     }
 }
