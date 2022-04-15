@@ -62,7 +62,7 @@
                 <arguments>
                     <argument>-classpath</argument>
                     <classpath />
-                    <argument>com.cmsc818g.App</argument>
+                    <argument>com.cmsc818g.PdaSupervisor</argument>
                 </arguments>
             </configuration>
         </plugin>
