@@ -96,5 +96,4 @@ public class StressManagementController extends AbstractBehavior<StressManagemen
         getContext().getLog().info("Got response from StressContextEngine: {}", response.message);
         return this;
     }
-
 }

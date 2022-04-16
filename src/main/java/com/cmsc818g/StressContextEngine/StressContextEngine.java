@@ -47,9 +47,7 @@ public class StressContextEngine extends AbstractBehavior<StressContextEngine.Co
     }
   
     private Behavior<Command> engineGreet(engineGreet message) { //when receive message
-        message.respondTo.tell(new engineResponse("I'm sorry. I'm afraid I can't do that."));
-        System.out.println("message: " + message);
-       
+        message.respondTo.tell(new engineResponse("I'm sorry. I'm afraid I can't do that."));       
       return this;
     }
 }
