@@ -4,7 +4,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
-import com.cmsc818g.StressContextEngine.Reporters.ReporterMessages;
+import com.cmsc818g.StressContextEngine.Reporters.BloodPressureReporter;
 import com.cmsc818g.StressContextEngine.Reporters.SchedulerReporter;
 
 import akka.actor.typed.ActorRef;
@@ -39,7 +39,7 @@ public class ReporterGroup extends AbstractBehavior<ReporterGroup.Command> {
     }
 
     private final String groupId;
-    private final Map<String, ActorRef<ReporterMessages.Command>> reporterIdToActor = new HashMap<>();
+    private final Map<String, ActorRef<BloodPressureReporter.Command>> reporterIdToActor = new HashMap<>();
 
     private ReporterGroup(ActorContext<Command> context, String groupId) {
         super(context);
@@ -49,7 +49,7 @@ public class ReporterGroup extends AbstractBehavior<ReporterGroup.Command> {
 
     private ReporterGroup onFollowReporter(ContextManager.RequestFollowContextReporter followMsg) {
         if (this.groupId.equals(followMsg.groupId)) {
-            ActorRef<ReporterMessages.Command> reporterActor = reporterIdToActor.get(followMsg.repId);
+            ActorRef<BloodPressureReporter.Command> reporterActor = reporterIdToActor.get(followMsg.repId);
 
             if (reporterActor != null) {
                 followMsg.replyTo.tell(new ContextManager.ReporterRegistered(reporterActor));

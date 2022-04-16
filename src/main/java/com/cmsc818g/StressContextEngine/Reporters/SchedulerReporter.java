@@ -14,13 +14,13 @@ import akka.actor.typed.javadsl.Behaviors;
 import akka.actor.typed.javadsl.Receive;
 
 // AbstractBehavior<What type of messages it will receive>
-public class SchedulerReporter extends AbstractBehavior<ReporterMessages.Command> {
+public class SchedulerReporter extends AbstractBehavior<BloodPressureReporter.Command> {
 
     /**
      * Since we will want more than a single type of message, we'll create an
      * empty interface that all necessary command messages can implement
      */
-    public interface Command extends ReporterMessages.Command {}
+    public interface Command extends BloodPressureReporter.Command {}
 
     /**
      * This is just one type of command message we may receive. Another actor can
@@ -110,12 +110,12 @@ public class SchedulerReporter extends AbstractBehavior<ReporterMessages.Command
      * @param reporterId This context reporter instance's identifier. Could be another other
      *  type of grouping/way of identifying an instance of this actor.
      */
-    public static Behavior<ReporterMessages.Command> create(String reporterId, String groupId) {
+    public static Behavior<BloodPressureReporter.Command> create(String reporterId, String groupId) {
         return Behaviors.setup(context -> new SchedulerReporter(context, reporterId, groupId));
     }
 
     // Just some instance variables
-    private final ActorContext<ReporterMessages.Command> context;
+    private final ActorContext<BloodPressureReporter.Command> context;
 
     private final String reporterId;
     private final String groupId;
@@ -127,7 +127,7 @@ public class SchedulerReporter extends AbstractBehavior<ReporterMessages.Command
      * @param context Not super clear what is within the context
      * @param contextRepId Some way of identifying this actor instance
      */
-    private SchedulerReporter(ActorContext<ReporterMessages.Command> context, String reporterId, String groupId) {
+    private SchedulerReporter(ActorContext<BloodPressureReporter.Command> context, String reporterId, String groupId) {
         super(context);
         this.reporterId = reporterId;
         this.groupId = groupId;
@@ -177,11 +177,11 @@ public class SchedulerReporter extends AbstractBehavior<ReporterMessages.Command
      * are other methods I don't know of yet too.
      */
     @Override
-    public Receive<ReporterMessages.Command> createReceive() {
+    public Receive<BloodPressureReporter.Command> createReceive() {
         return newReceiveBuilder()
             .onMessage(AskIsFreeAt.class, this::onAskIsFreeAt)
             .onMessage(AddToSchedule.class, this::onAddToSchedule)
-            .onMessage(ReporterMessages.Passivate.class, m -> Behaviors.stopped())
+            .onMessage(BloodPressureReporter.Passivate.class, m -> Behaviors.stopped())
             .onSignal(PostStop.class, signal -> onPostStop())
             .build();
     }
@@ -195,7 +195,7 @@ public class SchedulerReporter extends AbstractBehavior<ReporterMessages.Command
      * @param msg The command which is asking if the user is free at a date and time
      * @return the behavior of this actor. It didn't change
      */
-    private Behavior<ReporterMessages.Command> onAskIsFreeAt(AskIsFreeAt msg) {
+    private Behavior<BloodPressureReporter.Command> onAskIsFreeAt(AskIsFreeAt msg) {
         msg.replyTo.tell(new RespondIsFreeAt(msg.requestId, this.IsFreeAt(msg.dateTimeStr)));
         return this;
     }
@@ -206,7 +206,7 @@ public class SchedulerReporter extends AbstractBehavior<ReporterMessages.Command
      * 
      * (Meaning this will fail upon a second AddToSchedule message)
      */
-    private Behavior<ReporterMessages.Command> onAddToSchedule(AddToSchedule msg) {
+    private Behavior<BloodPressureReporter.Command> onAddToSchedule(AddToSchedule msg) {
         Optional<Boolean> isFree = this.IsFreeAt(msg.dateTimeStr);
         boolean addedEvent = !isFree.isEmpty() && isFree.get();
 
