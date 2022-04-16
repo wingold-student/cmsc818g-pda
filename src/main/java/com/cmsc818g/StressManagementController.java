@@ -2,8 +2,9 @@ package com.cmsc818g;
 import java.time.Duration;
 
 import com.cmsc818g.StressContextEngine.StressContextEngine;
+import com.cmsc818g.StressUIManager.StressUIManager;
+
 import akka.actor.typed.ActorRef;
-import akka.actor.typed.ActorSystem;
 import akka.actor.typed.Behavior;
 import akka.actor.typed.javadsl.AbstractBehavior;
 import akka.actor.typed.javadsl.ActorContext;
@@ -12,11 +13,11 @@ import akka.actor.typed.javadsl.Receive;
 
 
 public class StressManagementController extends AbstractBehavior<StressManagementController.Command> {
-  
-    public StressManagementController(ActorContext<Command> context) {
-        super(context);
-        System.out.println("[My] controller actor created");
+
+    public interface Command {
+      //void execute();
     }
+  
     public static class controllerResponse implements Command {
         public final String message;
     
@@ -24,10 +25,6 @@ public class StressManagementController extends AbstractBehavior<StressManagemen
           this.message = message;
         }
       }//end of controllerResponse
-
-    public interface Command {
-      //void execute();
-    }
 
     public static final class controllerGreet implements Command{
       public final String whom;
@@ -38,29 +35,29 @@ public class StressManagementController extends AbstractBehavior<StressManagemen
         this.replyTo = replyTo;
       }
     }//end of controllerGreet
-
-    /*
-    public static Behavior<StressManagementController.Command> create() {
-        return Behaviors.setup(StressManagementController::new);
-    }
-    */
     
-    public static Behavior<Command> create(ActorRef<StressContextEngine.Command> engine) {
+    public static Behavior<Command> create() {
         System.out.println("[My] Controller actor created");
-        return Behaviors.setup(context -> new StressManagementController(context, engine));
+        return Behaviors.setup(context -> new StressManagementController(context));
     }
     
-    private StressManagementController(ActorContext<Command> context, ActorRef<StressContextEngine.Command> contextEngine) {
+    private ActorRef<StressUIManager.Command> uiManagerActor;
+    private ActorRef<StressContextEngine.Command> contextEngineActor;
+
+    private StressManagementController(ActorContext<Command> context) {
         super(context);
         System.out.println("[My] StressManagementController ask ContextEngine");
+
+        uiManagerActor = context.spawn(StressUIManager.create(), "UIManager");
+        contextEngineActor = context.spawn(StressContextEngine.create(), "ContextEngine");
     
         // asking someone requires a timeout, if the timeout hits without response
         // the ask is failed with a TimeoutException
-        final Duration timeout = Duration.ofSeconds(10);
+        final Duration timeout = Duration.ofSeconds(5);
  
         context.ask(
             StressContextEngine.engineResponse.class,
-            contextEngine,
+            contextEngineActor,
             timeout,
             // construct the outgoing message
             (ActorRef<StressContextEngine.engineResponse> ref) -> new StressContextEngine.engineGreet(ref),
@@ -76,7 +73,7 @@ public class StressManagementController extends AbstractBehavior<StressManagemen
         final int requestId = 1;
         context.ask(
             StressContextEngine.engineResponse.class,
-            contextEngine,
+            contextEngineActor,
             timeout,
             // construct the outgoing message
             (ActorRef<StressContextEngine.engineResponse> ref) -> new StressContextEngine.engineGreet(ref),
@@ -98,16 +95,6 @@ public class StressManagementController extends AbstractBehavior<StressManagemen
     private Behavior<Command> onAdaptedResponse(controllerResponse response) {
         getContext().getLog().info("Got response from StressContextEngine: {}", response.message);
         return this;
-    }
-
-
-    public static void main(String[] args)
-    {   
-      //actor system
-      ActorRef<com.cmsc818g.StressContextEngine.StressContextEngine.Command> engine = ActorSystem.create(StressContextEngine.create(), "context-engine");
-      ActorSystem.create(StressManagementController.create((engine)), "pda-system-controller");
-      System.out.println("[My] PDA system started");
-
     }
 
 }
