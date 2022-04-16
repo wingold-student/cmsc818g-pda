@@ -7,14 +7,12 @@ import org.junit.Test;
 
 import akka.http.javadsl.testkit.JUnitRouteTest;
 import akka.actor.testkit.typed.javadsl.TestKitJunitResource;
-import akka.actor.testkit.typed.javadsl.TestProbe;
 import akka.actor.typed.ActorRef;
 import akka.http.javadsl.model.HttpRequest;
 import akka.http.javadsl.model.StatusCodes;
 import akka.http.javadsl.server.Route;
 import akka.http.javadsl.testkit.TestRoute;
 
-import static akka.http.javadsl.server.Directives.*;
 
 import java.util.concurrent.TimeUnit;
 
@@ -36,8 +34,6 @@ public class StressWebServerTest extends JUnitRouteTest {
 
     @Test
     public void testGetRootPage() {
-        TestProbe<StressWebServer.StartServer> probe = testkit.createTestProbe();
-
         Route route = concat(
             path("", () ->
                 get(() ->
