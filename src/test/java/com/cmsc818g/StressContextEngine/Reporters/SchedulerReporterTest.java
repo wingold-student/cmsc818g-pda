@@ -19,7 +19,7 @@ public class SchedulerReporterTest {
             testKit.createTestProbe(SchedulerReporter.RespondIsFreeAt.class);
 
         // The scheduler reporter who can ask another one (just for testing purposes)
-        ActorRef<ReporterMessages.Command> schedReporter = testKit.spawn(SchedulerReporter.create("scheduler", "group"));
+        ActorRef<BloodPressureReporter.Command> schedReporter = testKit.spawn(SchedulerReporter.create("scheduler", "group"));
 
         // Tell (1 time send) them we're asking if the user is free, but with a bad date time string
         schedReporter.tell(new SchedulerReporter.AskIsFreeAt(42L, "bad datetime str", probe.getRef()));
@@ -39,7 +39,7 @@ public class SchedulerReporterTest {
             testKit.createTestProbe(SchedulerReporter.RespondIsFreeAt.class);
 
         // The scheduler reporter who can ask another one (just for testing purposes)
-        ActorRef<ReporterMessages.Command> schedReporter = testKit.spawn(SchedulerReporter.create("scheduler", "group"));
+        ActorRef<BloodPressureReporter.Command> schedReporter = testKit.spawn(SchedulerReporter.create("scheduler", "group"));
 
         // Tell (1 time send) them we're asking if the user is free, but with a bad date time string
         schedReporter.tell(new SchedulerReporter.AskIsFreeAt(42L, "2022-04-01T00:00:00", probe.getRef()));
@@ -59,7 +59,7 @@ public class SchedulerReporterTest {
             testKit.createTestProbe(SchedulerReporter.ScheduleAddedTo.class);
 
         // The scheduler reporter who can ask another one (just for testing purposes)
-        ActorRef<ReporterMessages.Command> schedReporter = testKit.spawn(SchedulerReporter.create("scheduler", "group"));
+        ActorRef<BloodPressureReporter.Command> schedReporter = testKit.spawn(SchedulerReporter.create("scheduler", "group"));
 
         schedReporter.tell(new SchedulerReporter.AddToSchedule(42L, "2022-04-01T00:00:00", "first event", probe.getRef()));
         SchedulerReporter.ScheduleAddedTo response = probe.receiveMessage();

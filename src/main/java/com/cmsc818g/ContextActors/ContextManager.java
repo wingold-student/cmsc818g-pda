@@ -5,7 +5,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
-import com.cmsc818g.StressContextEngine.Reporters.ReporterMessages;
+import com.cmsc818g.StressContextEngine.Reporters.BloodPressureReporter;
 
 import akka.actor.typed.PostStop;
 import akka.actor.typed.ActorRef;
@@ -61,9 +61,9 @@ public class ContextManager extends AbstractBehavior<ContextManager.Command> {
     }
 
     public static final class ReporterRegistered {
-        public final ActorRef<ReporterMessages.Command> reporter; 
+        public final ActorRef<BloodPressureReporter.Command> reporter; 
 
-        public ReporterRegistered(ActorRef<ReporterMessages.Command> reporter) {
+        public ReporterRegistered(ActorRef<BloodPressureReporter.Command> reporter) {
             this.reporter = reporter;
         }
     }

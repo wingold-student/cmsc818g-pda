@@ -11,7 +11,7 @@ public class StressContextEngine extends AbstractBehavior<StressContextEngine.Co
 
     public StressContextEngine(ActorContext<Command> context) {
         super(context);
-        System.out.println("[My] context engine actor created");
+        context.getLog().info("context engine actor created");
     }
 
     public static Behavior<StressContextEngine.Command> create() {
@@ -45,9 +45,7 @@ public class StressContextEngine extends AbstractBehavior<StressContextEngine.Co
     }
   
     private Behavior<Command> engineGreet(engineGreet message) { //when receive message
-        message.respondTo.tell(new engineResponse("I'm sorry. I'm afraid I can't do that."));
-        System.out.println("message: " + message);
-       
+        message.respondTo.tell(new engineResponse("I'm sorry. I'm afraid I can't do that."));       
       return this;
     }
 }

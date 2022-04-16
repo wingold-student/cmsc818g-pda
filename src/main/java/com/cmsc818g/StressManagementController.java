@@ -15,7 +15,7 @@ public class StressManagementController extends AbstractBehavior<StressManagemen
   
     public StressManagementController(ActorContext<Command> context) {
         super(context);
-        System.out.println("[My] controller actor created");
+        getContext().getLog().info("controller actor created");
     }
     public static class controllerResponse implements Command {
         public final String message;
@@ -39,20 +39,18 @@ public class StressManagementController extends AbstractBehavior<StressManagemen
       }
     }//end of controllerGreet
 
-    /*
+    
     public static Behavior<StressManagementController.Command> create() {
         return Behaviors.setup(StressManagementController::new);
     }
-    */
-    
+
     public static Behavior<Command> create(ActorRef<StressContextEngine.Command> engine) {
-        System.out.println("[My] Controller actor created");
         return Behaviors.setup(context -> new StressManagementController(context, engine));
     }
     
     private StressManagementController(ActorContext<Command> context, ActorRef<StressContextEngine.Command> contextEngine) {
         super(context);
-        System.out.println("[My] StressManagementController ask ContextEngine");
+        getContext().getLog().info("StressManagementController ask ContextEngine");
     
         // asking someone requires a timeout, if the timeout hits without response
         // the ask is failed with a TimeoutException
@@ -103,10 +101,10 @@ public class StressManagementController extends AbstractBehavior<StressManagemen
 
     public static void main(String[] args)
     {   
-      //actor system
+      //Actor system
       ActorRef<com.cmsc818g.StressContextEngine.StressContextEngine.Command> engine = ActorSystem.create(StressContextEngine.create(), "context-engine");
       ActorSystem.create(StressManagementController.create((engine)), "pda-system-controller");
-      System.out.println("[My] PDA system started");
+      //System.out.println("[My] PDA system started");
 
     }
 
