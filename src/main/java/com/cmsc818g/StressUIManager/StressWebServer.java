@@ -4,7 +4,6 @@ import java.net.InetSocketAddress;
 import java.util.concurrent.CompletionStage;
 import java.time.Duration;
 
-import akka.actor.typed.ActorRef;
 import akka.actor.typed.ActorSystem;
 import akka.actor.typed.Behavior;
 import akka.actor.typed.PostStop;
@@ -17,8 +16,12 @@ import akka.http.javadsl.ServerBinding;
 import akka.http.javadsl.server.Route;
 
 /**
- * TODO: Maybe an Actor just should NOT be the server. Instead it is started in main...
- * Unless it is not actually blocking?
+ * StressWebServer just handles starting and stopping the server.
+ * 
+ * It does this through the StartServer and StopServer commands. It should
+ * do a graceful shutdown.
+ * 
+ * TODO: Potentially add a RestartServer command?
  */
 public class StressWebServer extends AbstractBehavior<StressWebServer.Command> {
     public interface Command {}
