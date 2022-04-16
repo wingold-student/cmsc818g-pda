@@ -15,7 +15,7 @@ public class App
 {
     public static void main( String[] args )
     {
-        ActorSystem<Void> system = ActorSystem.create(PdaSupervisor.create(), "pda-system");
+        ActorSystem<StressManagementController.Command> system = ActorSystem.create(StressManagementController.create(), "pda-system");
 
         try {
             System.in.read();
