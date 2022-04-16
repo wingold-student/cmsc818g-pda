@@ -32,8 +32,16 @@
 
   <dependencies>
     <dependency>
+      <groupId>junit</groupId>
+      <artifactId>junit</artifactId>
+      <version>4.11</version>
+      <scope>test</scope>
+    </dependency>
+
+    <!-- Akka dependencies -->
+    <dependency>
       <groupId>com.typesafe.akka</groupId>
-      <artifactId>akka-actor-typed_2.13</artifactId>
+      <artifactId>akka-actor-typed_${scala.binary.version}</artifactId>
       <version>${akka.version}</version>
     </dependency>
     <dependency>
@@ -43,7 +51,7 @@
     </dependency>
     <dependency>
       <groupId>com.typesafe.akka</groupId>
-      <artifactId>akka-actor-testkit-typed_2.13</artifactId>
+      <artifactId>akka-actor-testkit-typed_${scala.binary.version}</artifactId>
       <version>${akka.version}</version>
       <scope>test</scope>
     </dependency>
@@ -57,10 +65,17 @@
       <artifactId>akka-http_${scala.binary.version}</artifactId>
     </dependency>
     <dependency>
-      <groupId>junit</groupId>
-      <artifactId>junit</artifactId>
-      <version>4.11</version>
-      <scope>test</scope>
+      <groupId>com.typesafe.akka</groupId>
+      <artifactId>akka-http-jackson_${scala.binary.version}</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.typesafe.akka</groupId>
+      <artifactId>akka-stream-testkit_${scala.binary.version}</artifactId>
+      <version>${akka.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>com.typesafe.akka</groupId>
+      <artifactId>akka-http-testkit_${scala.binary.version}</artifactId>
     </dependency>
   </dependencies>
 
@@ -76,6 +91,21 @@
             </configuration>
         </plugin>
         <plugin>
+            <!-- Build an executable JAR -->
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-jar-plugin</artifactId>
+            <version>3.1.0</version>
+            <configuration>
+              <archive>
+                <manifest>
+                  <addClasspath>true</addClasspath>
+                  <classpathPrefix>lib/</classpathPrefix>
+                  <mainClass>com.cmsc818g.App</mainClass>
+                </manifest>
+              </archive>
+            </configuration>
+          </plugin>
+        <plugin>
             <groupId>org.codehaus.mojo</groupId>
             <artifactId>exec-maven-plugin</artifactId>
             <version>1.6.0</version>
@@ -84,7 +114,7 @@
                 <arguments>
                     <argument>-classpath</argument>
                     <classpath />
-                    <argument>com.cmsc818g.PdaSupervisor</argument>
+                    <argument>com.cmsc818g.App</argument>
                 </arguments>
             </configuration>
         </plugin>
