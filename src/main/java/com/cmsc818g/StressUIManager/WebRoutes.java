@@ -43,7 +43,7 @@ public class WebRoutes {
     public Route webRoutes() {
         return concat(
             path("", () ->
-                getFromFile("../../../../web/test.html")
+                getFromResource("web/test.html")
             ),
             path("hello", () ->
                 get(() ->
