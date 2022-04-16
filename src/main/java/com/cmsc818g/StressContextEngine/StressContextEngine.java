@@ -9,16 +9,8 @@ import akka.actor.typed.javadsl.Receive;
 
 public class StressContextEngine extends AbstractBehavior<StressContextEngine.Command> {
 
-    public StressContextEngine(ActorContext<Command> context) {
-        super(context);
-        System.out.println("[My] context engine actor created");
-    }
-
-    public static Behavior<StressContextEngine.Command> create() {
-        return Behaviors.setup(StressContextEngine::new);
-    }
     public interface Command {}
- 
+
     public static class engineGreet implements Command {
         public final ActorRef<engineResponse> respondTo;
         public engineGreet(ActorRef<engineResponse> ref) {
@@ -33,11 +25,21 @@ public class StressContextEngine extends AbstractBehavior<StressContextEngine.Co
         }
       }//end of class engineResponse
 
+
+    public static Behavior<Command> create() {
+        return Behaviors.setup(context -> new StressContextEngine(context));
+    }
+ 
 /*
     public static Behavior<Command> create(ActorRef<StressManagementController.Command> controller) {
       return Behaviors.setup(context -> new StressContextEngine(context, controller));
     }
 */
+
+    public StressContextEngine(ActorContext<Command> context) {
+        super(context);
+        System.out.println("[My] context engine actor created");
+    }
   
     @Override
     public Receive<Command> createReceive() {
