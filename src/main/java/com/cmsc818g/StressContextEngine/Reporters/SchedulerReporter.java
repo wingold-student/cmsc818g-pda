@@ -5,6 +5,8 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeParseException;
 import java.util.Optional;
 
+import com.cmsc818g.StressEntityManager.Entities.CalendarCommand;
+
 import akka.actor.typed.ActorRef;
 import akka.actor.typed.Behavior;
 import akka.actor.typed.PostStop;
@@ -14,13 +16,13 @@ import akka.actor.typed.javadsl.Behaviors;
 import akka.actor.typed.javadsl.Receive;
 
 // AbstractBehavior<What type of messages it will receive>
-public class SchedulerReporter extends AbstractBehavior<BloodPressureReporter.Command> {
+public class SchedulerReporter extends AbstractBehavior<SchedulerReporter.Command> {
 
     /**
      * Since we will want more than a single type of message, we'll create an
      * empty interface that all necessary command messages can implement
      */
-    public interface Command extends BloodPressureReporter.Command {}
+    public interface Command {}
 
     /**
      * This is just one type of command message we may receive. Another actor can
@@ -87,6 +89,24 @@ public class SchedulerReporter extends AbstractBehavior<BloodPressureReporter.Co
         }
     }
 
+    public static final class AddCalendar implements Command {
+        final long requestId;
+        final ActorRef<CalendarAdded> replyTo;
+        final ActorRef<CalendarCommand> calendarEntity;
+        final String calendarName;
+
+        public AddCalendar(long requestId, ActorRef<CalendarAdded> replyTo, ActorRef<CalendarCommand> calendarEntity, String calendarName) {
+            this.requestId = requestId;
+            this.replyTo = replyTo;
+            this.calendarEntity = calendarEntity;
+            this.calendarName = calendarName;
+        }
+    }
+
+    public static final class CalendarAdded {
+        public CalendarAdded(long requestId) {}
+    }
+
     /**
      * Reply back to AddToSchedule. Either it did, true, or it didn't, false.
      */
@@ -110,31 +130,25 @@ public class SchedulerReporter extends AbstractBehavior<BloodPressureReporter.Co
      * @param reporterId This context reporter instance's identifier. Could be another other
      *  type of grouping/way of identifying an instance of this actor.
      */
-    public static Behavior<BloodPressureReporter.Command> create(String reporterId, String groupId) {
-        return Behaviors.setup(context -> new SchedulerReporter(context, reporterId, groupId));
+    public static Behavior<Command> create(String reporterId) {
+        return Behaviors.setup(context -> new SchedulerReporter(context, reporterId));
     }
 
     // Just some instance variables
-    private final ActorContext<BloodPressureReporter.Command> context;
-
     private final String reporterId;
-    private final String groupId;
 
     private Optional<String> curEvent;
 
     /**
      * Constructor for this actor
-     * @param context Not super clear what is within the context
      * @param contextRepId Some way of identifying this actor instance
      */
-    private SchedulerReporter(ActorContext<BloodPressureReporter.Command> context, String reporterId, String groupId) {
+    private SchedulerReporter(ActorContext<Command> context, String reporterId) {
         super(context);
         this.reporterId = reporterId;
-        this.groupId = groupId;
-        this.context = context;
         this.curEvent = Optional.empty();
 
-        context.getLog().info("Scheduler Reporter with id {}-{} started", reporterId, groupId);
+        context.getLog().info("Scheduler Reporter with id {} started", reporterId);
     }
 
     /**
@@ -150,12 +164,12 @@ public class SchedulerReporter extends AbstractBehavior<BloodPressureReporter.Co
      */
     private Optional<Boolean> IsFreeAt(String dateTimeStr) {
         try {
-            this.context.getLog().info("Scheduler Reporter {} got date time str: {}", this.reporterId, dateTimeStr);
+            getContext().getLog().info("Scheduler Reporter {} got date time str: {}", this.reporterId, dateTimeStr);
             LocalDateTime recvDateTime = LocalDateTime.parse(dateTimeStr);
             DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("MM-dd-yyyy HH:mm:ss");
             String recvDateTimeStr = recvDateTime.format(dateFormatter);
 
-            this.context.getLog().info("Scheduler Reporter {} created date time: {}", this.reporterId, recvDateTimeStr);
+            getContext().getLog().info("Scheduler Reporter {} created date time: {}", this.reporterId, recvDateTimeStr);
 
             boolean isFree = this.curEvent.isEmpty();
             return Optional.of(isFree);
@@ -177,11 +191,11 @@ public class SchedulerReporter extends AbstractBehavior<BloodPressureReporter.Co
      * are other methods I don't know of yet too.
      */
     @Override
-    public Receive<BloodPressureReporter.Command> createReceive() {
+    public Receive<Command> createReceive() {
         return newReceiveBuilder()
             .onMessage(AskIsFreeAt.class, this::onAskIsFreeAt)
             .onMessage(AddToSchedule.class, this::onAddToSchedule)
-            .onMessage(BloodPressureReporter.Passivate.class, m -> Behaviors.stopped())
+            .onMessage(AddCalendar.class, this::onAddCalendar)
             .onSignal(PostStop.class, signal -> onPostStop())
             .build();
     }
@@ -195,7 +209,7 @@ public class SchedulerReporter extends AbstractBehavior<BloodPressureReporter.Co
      * @param msg The command which is asking if the user is free at a date and time
      * @return the behavior of this actor. It didn't change
      */
-    private Behavior<BloodPressureReporter.Command> onAskIsFreeAt(AskIsFreeAt msg) {
+    private Behavior<Command> onAskIsFreeAt(AskIsFreeAt msg) {
         msg.replyTo.tell(new RespondIsFreeAt(msg.requestId, this.IsFreeAt(msg.dateTimeStr)));
         return this;
     }
@@ -206,7 +220,7 @@ public class SchedulerReporter extends AbstractBehavior<BloodPressureReporter.Co
      * 
      * (Meaning this will fail upon a second AddToSchedule message)
      */
-    private Behavior<BloodPressureReporter.Command> onAddToSchedule(AddToSchedule msg) {
+    private Behavior<Command> onAddToSchedule(AddToSchedule msg) {
         Optional<Boolean> isFree = this.IsFreeAt(msg.dateTimeStr);
         boolean addedEvent = !isFree.isEmpty() && isFree.get();
 
@@ -215,6 +229,11 @@ public class SchedulerReporter extends AbstractBehavior<BloodPressureReporter.Co
         }
 
         msg.replyTo.tell(new ScheduleAddedTo(msg.requestId, addedEvent));
+        return this;
+    }
+
+    private Behavior<Command> onAddCalendar(AddCalendar msg) {
+        // TODO: Finish
         return this;
     }
     
