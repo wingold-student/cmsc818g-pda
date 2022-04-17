@@ -91,16 +91,6 @@ public class SchedulerReporter extends AbstractBehavior<SchedulerReporter.Comman
         }
     }
 
-    public static final class AddCalendar implements Command {
-        final ActorRef<CalendarCommand> calendarEntity;
-        final String calendarName;
-
-        public AddCalendar(ActorRef<CalendarCommand> calendarEntity, String calendarName) {
-            this.calendarEntity = calendarEntity;
-            this.calendarName = calendarName;
-        }
-    }
-
     /**
      * Reply back to AddToSchedule. Either it did, true, or it didn't, false.
      */
@@ -111,6 +101,16 @@ public class SchedulerReporter extends AbstractBehavior<SchedulerReporter.Comman
         public ScheduleAddedTo(long requestId, boolean value) {
             this.requestId = requestId;
             this.value = value;
+        }
+    }
+
+    public static final class AddCalendar implements Command {
+        final ActorRef<CalendarCommand> calendarEntity;
+        final String calendarName;
+
+        public AddCalendar(ActorRef<CalendarCommand> calendarEntity, String calendarName) {
+            this.calendarEntity = calendarEntity;
+            this.calendarName = calendarName;
         }
     }
 
@@ -256,6 +256,7 @@ public class SchedulerReporter extends AbstractBehavior<SchedulerReporter.Comman
     }
 
     private Behavior<Command> onGetEventsInRange(GetEventsInRange msg) {
+        msg.replyTo.tell(new ResponseEventsInRange(new HashMap<String, Object>()));
         return this;
     }
     
