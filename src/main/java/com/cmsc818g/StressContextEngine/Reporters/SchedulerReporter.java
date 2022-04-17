@@ -149,29 +149,23 @@ public class SchedulerReporter extends AbstractBehavior<SchedulerReporter.Comman
      * 
      * Behaviors define well, how an actor behaves. But their behavior can change in the middle
      * of execution. This is why we return it not only here, but after processing messages too.
-     *  
-     * @param reporterId This context reporter instance's identifier. Could be another other
-     *  type of grouping/way of identifying an instance of this actor.
      */
-    public static Behavior<Command> create(String reporterId) {
-        return Behaviors.setup(context -> new SchedulerReporter(context, reporterId));
+    public static Behavior<Command> create() {
+        return Behaviors.setup(context -> new SchedulerReporter(context));
     }
 
     // Just some instance variables
-    private final String reporterId;
     private Optional<String> curEvent;
     private HashMap<String, ActorRef<CalendarCommand>> calendarEntities;
 
     /**
      * Constructor for this actor
-     * @param contextRepId Some way of identifying this actor instance
      */
-    private SchedulerReporter(ActorContext<Command> context, String reporterId) {
+    private SchedulerReporter(ActorContext<Command> context) {
         super(context);
-        this.reporterId = reporterId;
         this.curEvent = Optional.empty();
 
-        context.getLog().info("Scheduler Reporter with id {} started", reporterId);
+        context.getLog().info("Scheduler Reporter");
     }
 
     /**
@@ -187,12 +181,12 @@ public class SchedulerReporter extends AbstractBehavior<SchedulerReporter.Comman
      */
     private Optional<Boolean> IsFreeAt(String dateTimeStr) {
         try {
-            getContext().getLog().info("Scheduler Reporter {} got date time str: {}", this.reporterId, dateTimeStr);
+            getContext().getLog().info("Scheduler Reporter got date time str: {}", dateTimeStr);
             LocalDateTime recvDateTime = LocalDateTime.parse(dateTimeStr);
             DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("MM-dd-yyyy HH:mm:ss");
             String recvDateTimeStr = recvDateTime.format(dateFormatter);
 
-            getContext().getLog().info("Scheduler Reporter {} created date time: {}", this.reporterId, recvDateTimeStr);
+            getContext().getLog().info("Scheduler Reporter created date time: {}", recvDateTimeStr);
 
             boolean isFree = this.curEvent.isEmpty();
             return Optional.of(isFree);
@@ -269,7 +263,7 @@ public class SchedulerReporter extends AbstractBehavior<SchedulerReporter.Comman
      * What to do when shut down by a supervisor
      */
     private SchedulerReporter onPostStop() {
-        getContext().getLog().info("Scheduler reporter {} stopped", this.reporterId);
+        getContext().getLog().info("Scheduler reporter stopped");
         return this;
     }
 }
