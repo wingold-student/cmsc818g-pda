@@ -3,6 +3,7 @@ package com.cmsc818g.StressContextEngine.Reporters;
 import java.time.format.DateTimeFormatter;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeParseException;
+import java.util.HashMap;
 import java.util.Optional;
 
 import com.cmsc818g.StressEntityManager.Entities.CalendarCommand;
@@ -14,6 +15,7 @@ import akka.actor.typed.javadsl.AbstractBehavior;
 import akka.actor.typed.javadsl.ActorContext;
 import akka.actor.typed.javadsl.Behaviors;
 import akka.actor.typed.javadsl.Receive;
+import akka.http.javadsl.model.DateTime;
 
 // AbstractBehavior<What type of messages it will receive>
 public class SchedulerReporter extends AbstractBehavior<SchedulerReporter.Command> {
@@ -90,21 +92,13 @@ public class SchedulerReporter extends AbstractBehavior<SchedulerReporter.Comman
     }
 
     public static final class AddCalendar implements Command {
-        final long requestId;
-        final ActorRef<CalendarAdded> replyTo;
         final ActorRef<CalendarCommand> calendarEntity;
         final String calendarName;
 
-        public AddCalendar(long requestId, ActorRef<CalendarAdded> replyTo, ActorRef<CalendarCommand> calendarEntity, String calendarName) {
-            this.requestId = requestId;
-            this.replyTo = replyTo;
+        public AddCalendar(ActorRef<CalendarCommand> calendarEntity, String calendarName) {
             this.calendarEntity = calendarEntity;
             this.calendarName = calendarName;
         }
-    }
-
-    public static final class CalendarAdded {
-        public CalendarAdded(long requestId) {}
     }
 
     /**
@@ -119,6 +113,35 @@ public class SchedulerReporter extends AbstractBehavior<SchedulerReporter.Comman
             this.value = value;
         }
     }
+
+    public static final class GetEventsInRange implements Command {
+        final ActorRef<ResponseEventsInRange> replyTo;
+        final Optional<String> calendarName;
+        final boolean acrossCalendars;
+        final DateTime start;
+        final DateTime end;
+
+        public GetEventsInRange(ActorRef<ResponseEventsInRange> replyTo,
+                                Optional<String> calendarName,
+                                DateTime start,
+                                DateTime end,
+                                boolean acrossCalendars) {
+            this.replyTo = replyTo;
+            this.calendarName = calendarName;
+            this.acrossCalendars = acrossCalendars;
+            this.start = start;
+            this.end = end;
+        }
+    }
+
+    public static final class ResponseEventsInRange {
+        final HashMap<String, Object> events; // TODO: Update to actual EventObject when created
+
+        public ResponseEventsInRange(HashMap<String, Object> events) {
+            this.events = events;
+        }
+    }
+
 
     /**
      * Actors are essentially created via a Factory.
@@ -136,8 +159,8 @@ public class SchedulerReporter extends AbstractBehavior<SchedulerReporter.Comman
 
     // Just some instance variables
     private final String reporterId;
-
     private Optional<String> curEvent;
+    private HashMap<String, ActorRef<CalendarCommand>> calendarEntities;
 
     /**
      * Constructor for this actor
@@ -196,6 +219,7 @@ public class SchedulerReporter extends AbstractBehavior<SchedulerReporter.Comman
             .onMessage(AskIsFreeAt.class, this::onAskIsFreeAt)
             .onMessage(AddToSchedule.class, this::onAddToSchedule)
             .onMessage(AddCalendar.class, this::onAddCalendar)
+            .onMessage(GetEventsInRange.class, this::onGetEventsInRange)
             .onSignal(PostStop.class, signal -> onPostStop())
             .build();
     }
@@ -233,7 +257,11 @@ public class SchedulerReporter extends AbstractBehavior<SchedulerReporter.Comman
     }
 
     private Behavior<Command> onAddCalendar(AddCalendar msg) {
-        // TODO: Finish
+        calendarEntities.put(msg.calendarName, msg.calendarEntity);
+        return this;
+    }
+
+    private Behavior<Command> onGetEventsInRange(GetEventsInRange msg) {
         return this;
     }
     
