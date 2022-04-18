@@ -2,6 +2,8 @@ package com.cmsc818g.StressContextEngine;
 
 import java.util.ArrayList;
 
+import com.cmsc818g.StressManagementController;
+
 import akka.actor.typed.ActorRef;
 import akka.actor.typed.Behavior;
 import akka.actor.typed.javadsl.AbstractBehavior;
@@ -14,30 +16,18 @@ public class StressContextEngine extends AbstractBehavior<StressContextEngine.Co
     public interface Command {}
 
     public static class contextEngineGreet implements Command {
-        public final ActorRef<contextEngineResponse_controller> replyTo;
-        public contextEngineGreet(ActorRef<contextEngineResponse_controller> ref) {
+        public final ActorRef<StressManagementController.Command> replyTo;
+        public final ArrayList<String> list;
+        public final StressManagementController.HealthInformation healthInfo; 
+        
+        public contextEngineGreet(ActorRef<StressManagementController.Command> ref,
+                      StressManagementController.HealthInformation info, ArrayList<String> list) {
           this.replyTo = ref;
+          this.healthInfo = info;
+          this.list = list;
         }
       }//end of class contextEngineGreet
-      public static final class contextEngineResponse_controller {
-        public final String message;
-        public final ArrayList<String> entityList;
-
-        public contextEngineResponse_controller(String message, ArrayList<String> list) {
-          this.entityList = list;
-          this.message = message;
-        }
-      }//end of class contextEngineResponse
-      public static class HealthInformation {
-        public final int bloodPressure = 98;
-        public final int heartRate = 65;
-        public final int sleepLevel = 0;
-        public final String location = "home";
-        public final int BusynessLevel = 0;
-        public final int stressLevel = 0;
-        //scheduler
-        //medical history
-      }
+ 
     public static Behavior<Command> create() {
         return Behaviors.setup(context -> new StressContextEngine(context));
     }
@@ -59,9 +49,9 @@ public class StressContextEngine extends AbstractBehavior<StressContextEngine.Co
   
     private Behavior<Command> onEngineResponse(contextEngineGreet message) { //when receive message
         //get information of connected entities
-        ArrayList<String> entities = new ArrayList<String>();
+        StressManagementController.HealthInformation personalData = new StressManagementController.HealthInformation();
    
-        message.replyTo.tell(new contextEngineResponse_controller("contextEngine", entities));       
+        message.replyTo.tell(new StressManagementController.ContextEngineToController("healthData", personalData));       
       return this;
     }
 }

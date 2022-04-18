@@ -15,25 +15,14 @@ public class StressEntityManager extends AbstractBehavior<StressEntityManager.Co
     
     public interface Command {}
     public static class entityManagerGreet implements Command {
-        public final ActorRef<entityManagerResponse_controller> replyTo;
+        public final ActorRef<StressManagementController.Command> replyTo;
 
-        public entityManagerGreet(ActorRef<entityManagerResponse_controller> ref) {
-          this.replyTo = ref;
+        public entityManagerGreet(ActorRef<StressManagementController.Command> replyTo) {
+          this.replyTo = replyTo;
         }
       }//end of class entityManagerGreet
-      public static final class entityManagerResponse_controller {
-        public final String message;
-        public final ArrayList<String> entityList;
-
-        public entityManagerResponse_controller(String message, ArrayList<String> list) {
-          this.entityList = list;
-          this.message = message;
-        }
-      }//end of class entityManagerResponse_controller
-
 
     public static Behavior<Command> create() {
-      System.out.println("entity");;
       return Behaviors.setup(context -> new StressEntityManager(context));
     }
 
@@ -59,7 +48,7 @@ public class StressEntityManager extends AbstractBehavior<StressEntityManager.Co
         entities.add("WorkCalender");
         entities.add("SchoolCalender");
 
-        message.replyTo.tell(new entityManagerResponse_controller("entityManager", entities)); 
+        message.replyTo.tell(new StressManagementController.EntityManagerToController("entityList", entities)); 
       return this;
     }
 

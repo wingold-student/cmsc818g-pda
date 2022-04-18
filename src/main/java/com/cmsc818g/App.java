@@ -14,6 +14,7 @@ public class App
     public static void main( String[] args )
     {
         final ActorSystem<StressManagementController.Command> system = ActorSystem.create(StressManagementController.create(), "pda-system");
+        //system.tell(new StressManagementController.controllerProcess("start")) ;
             
         try {
             System.in.read();

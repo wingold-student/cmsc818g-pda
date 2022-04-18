@@ -1,13 +1,10 @@
 package com.cmsc818g;
 
-import java.time.Duration;
 import java.util.ArrayList;
-
 import com.cmsc818g.StressContextEngine.StressContextEngine;
 import com.cmsc818g.StressDetectionEngine.StressDetectionEngine;
 import com.cmsc818g.StressEntityManager.StressEntityManager;
-import com.cmsc818g.StressEntityManager.StressEntityManager.entityManagerGreet;
-import com.cmsc818g.StressEntityManager.StressEntityManager.entityManagerResponse_controller;
+import com.cmsc818g.StressRecommendationEngine.StressRecommendationEngine;
 import com.cmsc818g.StressUIManager.StressUIManager;
 
 import akka.actor.typed.ActorRef;
@@ -16,54 +13,73 @@ import akka.actor.typed.javadsl.AbstractBehavior;
 import akka.actor.typed.javadsl.ActorContext;
 import akka.actor.typed.javadsl.Behaviors;
 import akka.actor.typed.javadsl.Receive;
+
 public class StressManagementController extends AbstractBehavior<StressManagementController.Command>
 {
     public static ArrayList<String> entityList = new ArrayList<String>();
-    private final ActorRef<StressEntityManager.Command> childEntityManager;
-    private final ActorRef<StressContextEngine.Command> childContextEngine;
+    public final ActorRef<StressEntityManager.Command> child_EntityManager;
+    public final ActorRef<StressContextEngine.Command> child_ContextEngine;
+    public final ActorRef<StressDetectionEngine.Command> child_DetectionEngine;
+    public final ActorRef<StressRecommendationEngine.Command> child_RecommendEngine;
+    public final ActorRef<StressUIManager.Command> child_UIManager;
     public static class HealthInformation {
-      public final int bloodPressure = 98;
-      public final int heartRate = 65;
-      public final int sleepLevel = 0;
-      public final String location = "home";
-      public final int BusynessLevel = 0;
-      public final int stressLevel = 0;
+      public int bloodPressure = 98;
+      public int heartRate = 65;
+      public int sleepLevel = 0;
+      public String location = "home";
+      public int BusynessLevel = 0;
+      public int stressLevel = 0;
       //scheduler
       //medical history
     }
+    public HealthInformation PersonalHealthInfo = new HealthInformation();
 
     public StressManagementController(ActorContext<Command> context) {
         super(context); 
         getContext().getLog().info("Controller Actor created");
 
-        childEntityManager = context.spawn(StressEntityManager.create(), "StressEntityManager");
-        getContext().getLog().info("Entity Manager Actor spawn");
+        child_EntityManager = context.spawn(StressEntityManager.create(), "StressEntityManager");
+        child_EntityManager.tell(new StressEntityManager.entityManagerGreet(getContext().getSelf()));
 
-        childContextEngine = context.spawn(StressContextEngine.create(), "StressContextEngine");
-        getContext().getLog().info("Context Engine Actor spawn");
-        //context.spawn(StressDetectionEngine.create(), "StressDetectionEngine");
-        //context.spawn(StressRecommendEngine.create(), "StressRecommendEngine");
-        //context.spawn(StressUIManager.create(), "StressUIManager");
+        child_ContextEngine = context.spawn(StressContextEngine.create(), "StressContextEngine");
+        child_ContextEngine.tell(new StressContextEngine.contextEngineGreet(getContext().getSelf(), PersonalHealthInfo, entityList));
+
+        child_DetectionEngine = context.spawn(StressDetectionEngine.create(), "StressDetectionEngine");
+        child_DetectionEngine.tell(new StressDetectionEngine.detectionEngineGreet(getContext().getSelf(), PersonalHealthInfo, entityList));
+
+        child_RecommendEngine = context.spawn(StressRecommendationEngine.create(), "StressRecommendEngine");
+        child_RecommendEngine.tell(new StressRecommendationEngine.recommendEngineGreet(getContext().getSelf(), PersonalHealthInfo, entityList));
+
+        child_UIManager = context.spawn(StressUIManager.create(), "StressUIManager");
+        // Should I add UI Manager tell?
+  
     }
+
+    public static void controllerProcess() {
   
-    /*public static Behavior<Command> create(ActorRef<StressEntityManager.Command> engine) {
-      System.out.println("works");;
-      return Behaviors.setup(context -> new StressManagementController(context, engine));
-    }*/
-  
+      return;
+    }//end of controllerProcess
     public interface Command {
       //void execute();
     }
+
     public static Behavior<StressManagementController.Command> create() {
       return Behaviors.setup(StressManagementController::new);
-  }
+    }
 
- 
   /* 
   ------------------------------------------------------------------------------------------------------
       Response/Reply Message between controller and Entity Manager
   ------------------------------------------------------------------------------------------------------
   */
+
+    public static final class controllerProcess implements Command{
+      public final String message;
+    
+      public controllerProcess(String message) {
+        this.message = message;
+      }
+    }
     public static class EntityManagerToController implements Command {
     public final String message;
     public final ArrayList<String> list;
@@ -73,68 +89,24 @@ public class StressManagementController extends AbstractBehavior<StressManagemen
       this.list = list;
     }
   }//end of EntityManagerToController
-  public static final class ControllerToEntityManager implements Command{
-    public final String whom;
-
-    public ControllerToEntityManager(String whom) {
-      this.whom = whom;
-    }
-  }//end of ControllerToEntityManager
- 
-  /* 
-  ------------------------------------------------------------------------------------------------------
-      Response/Reply Message between controller and Context Engine
-  ------------------------------------------------------------------------------------------------------
-  */
-      public static class ContextEngineToController implements Command {
-        public final String message;
-        public final HealthInformation healthInfo;
-
-        public ContextEngineToController(String message, HealthInformation healthInfo) {
-          this.message = message;
-          this.healthInfo = healthInfo;
-        }
-      }//end of ControllerToContextEngine
-      public static final class ControllerToContextEngine implements Command{
-        public final String message;
-        public final ArrayList<String> list;
-    
-        public ControllerToContextEngine(String message, ArrayList<String> list ) {
-          this.message = message;
-          this.list = list;
-        
-        }
-      }//end of ControllerToContextEngine
-
-    /* 
-    ------------------------------------------------------------------------------------------------------
-        Response/Reply Message between controller and Detection Engine
-    ------------------------------------------------------------------------------------------------------
-    */
-    public static class DetectionEngineToController implements Command {
+    public static class ContextEngineToController implements Command {
       public final String message;
-      public final int stressLevel; //get stress level from detection engine
+      public final HealthInformation healthInfo;
 
-      public DetectionEngineToController(String message, int stressLevel) {
-        this.message = message;
-        this.stressLevel = stressLevel;
-      }
-    }//end of DetectionEngineToController
-    public static final class ControllerToDetectionEngine implements Command{ 
-      public final String message;
-      public final HealthInformation healthInfo; //send health info to detection engine
-    
-      public ControllerToDetectionEngine(String message, HealthInformation healthInfo) {
+      public ContextEngineToController(String message, HealthInformation healthInfo) {
         this.message = message;
         this.healthInfo = healthInfo;
       }
-    }//end of ControllerToDetectionEngine
-        
-    /* 
-    ------------------------------------------------------------------------------------------------------
-        Response/Reply Message between controller and Recommendation Engine
-    ------------------------------------------------------------------------------------------------------
-    */
+    }//end of ControllerToContextEngine
+    public static class DetectionEngineToController implements Command {
+      public final String message;
+      public final int level; //get stress level from detection engine
+
+      public DetectionEngineToController(String message, int level) {
+        this.message = message;
+        this.level = level;
+      }
+    }//end of DetectionEngineToController
     public static class RecommendEngineToController implements Command {
       //recommendation engines tells controller the treatment method
       // or it directly talks to the UI Manager
@@ -143,41 +115,17 @@ public class StressManagementController extends AbstractBehavior<StressManagemen
         this.message = message;
       }
     }//end of ControllerToRecommendEngine
-    public static final class ControllerToRecommendEngine implements Command{
-      //controller sends current stress level, previous stress level
-      public final String whom;
-      public final int currentStressLevel;
-      public final int pastStressLevel;
 
-      public ControllerToRecommendEngine(String whom, int currentStressLevel, int pastStressLevel) {
-        this.whom = whom;
-        this.currentStressLevel = currentStressLevel;
-        this.pastStressLevel = pastStressLevel;
-      }
-    }//end of RecommendEngineToController
-    /* 
-    ------------------------------------------------------------------------------------------------------
-        Response/Reply Message between controller and UI Manager
-    ------------------------------------------------------------------------------------------------------
-    */
     public static class UIManagerToController implements Command {
       public final String message;
       public UIManagerToController(String message) {
         this.message = message;
       }
     }//end of UIManagerToController
-    public static final class ControllerToUIManager implements Command{
-      public final String whom;
-      public ControllerToUIManager(String whom, ActorRef<UIManagerToController> replyTo) {
-        this.whom = whom;
-      }
-    }//end of ControllerToUIManager
 
-
- 
 /*
   ------------------------------------------------------------------------------------------------------
-      ask between controller and Entity Manager ->  will change to tell function
+      ask between controller and Entity Manager example
   ------------------------------------------------------------------------------------------------------
 
     private StressManagementController(ActorContext<Command> context, ActorRef<StressEntityManager.Command> enManager) {
@@ -220,16 +168,17 @@ public class StressManagementController extends AbstractBehavior<StressManagemen
             });
  
       }
-      */
+    */
 
  /* 
   ------------------------------------------------------------------------------------------------------
-    When Controller Received Message it does below actions
+    Actions when Controller Received Message 
   ------------------------------------------------------------------------------------------------------
 */     
     @Override
     public Receive<Command> createReceive() {
         return newReceiveBuilder()
+        .onMessage(controllerProcess.class, this::onControllerProcess)
         .onMessage(EntityManagerToController.class, this::onEntityManagerResponse)
         .onMessage(ContextEngineToController.class, this::onContextEnginedResponse)
         .onMessage(DetectionEngineToController.class, this::onDetectionEngineResponse)
@@ -239,52 +188,59 @@ public class StressManagementController extends AbstractBehavior<StressManagemen
         
     } //end of createReceive
 
+    //controller
+    //start, stop
+    //give device list to the reporters
+
+
+    private Behavior<Command> onControllerProcess(controllerProcess response) {
+      getContext().getLog().info("Got response from Main: {}", response.message);
+      // if there is additional controller process to be implemented
+
+      return this;
+  }
+
     private Behavior<Command> onEntityManagerResponse(EntityManagerToController response) {
       getContext().getLog().info("Got response from Entity Manager: {}", response.message);
       //get entity list and save data in controller
+      if(response.message != "entityList") return this;
       if(entityList != null){
         getContext().getLog().info("entity list setting");
-        entityList = null;
-        entityList.addAll(response.list);
+        entityList = response.list;
 
         for(int i=0; i<entityList.size();i++)
           System.out.println("entityList["+i+"] = "+ entityList.get(i));
-        
-        sendMsgToContextEngine(response);
       }
-      getContext().getLog().info("entity list null");
+ 
       return this;
     }//end of onEntityManagerResponse
-
-    private Behavior<Command> sendMsgToContextEngine(EntityManagerToController response){
-      ActorRef<Command> controller = getContext().getSelf();
-
-      //connect with contextEngine
-      controller.tell(new ControllerToContextEngine("controller", entityList));      
-      return this;
-    }
-
+ 
     private Behavior<Command> onContextEnginedResponse(ContextEngineToController response) {
         getContext().getLog().info("Got response from Context Engine: {}", response.message);
-
-
-        
+        if(response.message != "healthData") 
+          return this;
+   
+          PersonalHealthInfo = response.healthInfo;
+          System.out.println("PersonalHealthInfo: " + PersonalHealthInfo);
         return this;
     }
 
     private Behavior<Command> onDetectionEngineResponse(DetectionEngineToController response) {
         getContext().getLog().info("Got response from Detection Engine: {}", response.message);
-      
+       //detection engine send entity list
+       if(response.message != "stressLevel") return this;
+       PersonalHealthInfo.stressLevel = response.level;
+       System.out.println("stress level: " + PersonalHealthInfo.stressLevel);
+
         return this;
     }
 
     private Behavior<Command> onRecommendEnginedResponse(RecommendEngineToController response) {
       getContext().getLog().info("Got response from Recommendation Engine: {}", response.message);
+      if(response.message != "recommendation") return this;
 
-      //recommendation
       return this;
   }
-
   
     private Behavior<Command> onUIManagerResponse(UIManagerToController response) {
       getContext().getLog().info("Got response from UI Manager: {}", response.message);
