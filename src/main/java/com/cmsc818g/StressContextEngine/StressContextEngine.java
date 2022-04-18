@@ -1,5 +1,7 @@
 package com.cmsc818g.StressContextEngine;
 
+import java.util.ArrayList;
+
 import akka.actor.typed.ActorRef;
 import akka.actor.typed.Behavior;
 import akka.actor.typed.javadsl.AbstractBehavior;
@@ -11,25 +13,34 @@ public class StressContextEngine extends AbstractBehavior<StressContextEngine.Co
 
     public interface Command {}
 
-    public static class engineGreet implements Command {
-        public final ActorRef<engineResponse> respondTo;
-        public engineGreet(ActorRef<engineResponse> ref) {
-          this.respondTo = ref;
+    public static class contextEngineGreet implements Command {
+        public final ActorRef<contextEngineResponse_controller> replyTo;
+        public contextEngineGreet(ActorRef<contextEngineResponse_controller> ref) {
+          this.replyTo = ref;
         }
-      }//end of class engineCommunication
-  
-      public static final class engineResponse {
+      }//end of class contextEngineGreet
+      public static final class contextEngineResponse_controller {
         public final String message;
-        public engineResponse(String message) {
+        public final ArrayList<String> entityList;
+
+        public contextEngineResponse_controller(String message, ArrayList<String> list) {
+          this.entityList = list;
           this.message = message;
         }
-      }//end of class engineResponse
-
-
+      }//end of class contextEngineResponse
+      public static class HealthInformation {
+        public final int bloodPressure = 98;
+        public final int heartRate = 65;
+        public final int sleepLevel = 0;
+        public final String location = "home";
+        public final int BusynessLevel = 0;
+        public final int stressLevel = 0;
+        //scheduler
+        //medical history
+      }
     public static Behavior<Command> create() {
         return Behaviors.setup(context -> new StressContextEngine(context));
     }
- 
 /*
     public static Behavior<Command> create(ActorRef<StressManagementController.Command> controller) {
       return Behaviors.setup(context -> new StressContextEngine(context, controller));
@@ -38,16 +49,19 @@ public class StressContextEngine extends AbstractBehavior<StressContextEngine.Co
 
     public StressContextEngine(ActorContext<Command> context) {
         super(context);
-        System.out.println("[My] context engine actor created");
+        getContext().getLog().info("context engine actor created");
     }
   
     @Override
     public Receive<Command> createReceive() {
-      return newReceiveBuilder().onMessage(engineGreet.class, this::engineGreet).build();
+      return newReceiveBuilder().onMessage(contextEngineGreet.class, this::onEngineResponse).build();
     }
   
-    private Behavior<Command> engineGreet(engineGreet message) { //when receive message
-        message.respondTo.tell(new engineResponse("I'm sorry. I'm afraid I can't do that."));       
+    private Behavior<Command> onEngineResponse(contextEngineGreet message) { //when receive message
+        //get information of connected entities
+        ArrayList<String> entities = new ArrayList<String>();
+   
+        message.replyTo.tell(new contextEngineResponse_controller("contextEngine", entities));       
       return this;
     }
 }

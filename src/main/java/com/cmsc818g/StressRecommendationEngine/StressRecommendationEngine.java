@@ -4,6 +4,12 @@ import akka.actor.typed.javadsl.AbstractBehavior;
 import akka.actor.typed.javadsl.ActorContext;
 import akka.actor.typed.javadsl.Receive;
 
+/*
+message from controller:
+    current stress level
+    past stress level
+*/
+
 public class StressRecommendationEngine extends AbstractBehavior<StressRecommendationEngine.Command> {
 
     public interface Command {}
