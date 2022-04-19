@@ -3,6 +3,7 @@ package com.cmsc818g.StressRecommendationEngine;
 import java.util.ArrayList;
 
 import com.cmsc818g.StressManagementController;
+import com.cmsc818g.StressContextEngine.Reporters.SleepReporter;
 
 import akka.actor.typed.ActorRef;
 import akka.actor.typed.Behavior;
@@ -14,6 +15,13 @@ import akka.actor.typed.javadsl.Receive;
 message from controller:
     current stress level
     past stress level
+Reporters to send msg to:
+    Sleep Reporter
+    Location Reporter
+    Schedule Reporter
+    Media Player(?)
+Fetch recommendation from Policy DB
+
 */
 
 public class StressRecommendationEngine extends AbstractBehavior<StressRecommendationEngine.Command> {
@@ -41,18 +49,69 @@ public class StressRecommendationEngine extends AbstractBehavior<StressRecommend
         getContext().getLog().info("Recommendation Engine actor created"); 
     }
   
+
+
+    /*
+    * receiving responses from reporters
+    */
     @Override
     public Receive<Command> createReceive() {
-      return newReceiveBuilder().onMessage(recommendEngineGreet.class, this::onEngineResponse)
+      return newReceiveBuilder()
+      .onMessage(recommendEngineGreet.class, this::onEngineResponse)
+      .onMessage(SleepReporterToRecommendation.class, this::onSleepReporterResponse)      
+      .onMessage(LocationReporterToRecommendation.class, this::onLocationReporterResponse)
+      .onMessage(ScheduleReporterToRecommendation.class, this::onScheduleReporterResponse)
       .build();
     }
   
     private Behavior<Command> onEngineResponse(recommendEngineGreet message) { //when receive message
         getContext().getLog().info("Get entity lists and send msg back");
         //recommend treatment     
-
         message.replyTo.tell(new StressManagementController.RecommendEngineToController("recommendation")); 
+        //this.tell(new SleepReporter.AskSleepHours(getContext().getSelf()))
       return this;
+    }
+
+    private Behavior<Command> onSleepReporterResponse(SleepReporterToRecommendation response) {
+      getContext().getLog().info("Got response from Sleep Reporter: {}", response.sleepHours); 
+      return this;
+    }
+
+    private Behavior<Command> onLocationReporterResponse(LocationReporterToRecommendation response) {
+      getContext().getLog().info("Got response from Location Reporter: {}", response.location); 
+      return this;
+    }
+
+    private Behavior<Command> onScheduleReporterResponse(ScheduleReporterToRecommendation response) {
+      getContext().getLog().info("Got response from Schedule Reporter: {}", response.message); 
+      return this;
+    }
+
+    public static class SleepReporterToRecommendation implements Command {
+      public final int sleepHours; //get sleep hours from sleep reporter
+
+      public SleepReporterToRecommendation(int sleepHours) {
+        this.sleepHours = sleepHours;
+      }
+    }
+
+    public static class LocationReporterToRecommendation implements Command {
+      //recommendation engines tells controller the treatment method
+      // or it directly talks to the UI Manager
+      public final String location;
+      public LocationReporterToRecommendation(String location) {
+        this.location = location;
+      }
+    }
+
+    public static class ScheduleReporterToRecommendation implements Command {
+      //recommendation engines tells controller the treatment method
+      // or it directly talks to the UI Manager
+      public final String message;
+
+      public ScheduleReporterToRecommendation(String message) {
+        this.message = message;
+      }
     }
 
 
