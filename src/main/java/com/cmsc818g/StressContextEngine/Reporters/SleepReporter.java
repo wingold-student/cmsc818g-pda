@@ -44,7 +44,6 @@ public class SleepReporter extends AbstractBehavior<SleepReporter.Command>{
         context.getLog().info("Sleep Reporter with id {}-{} started", reporterId, groupId);
     }
 
-
     @Override
     public Receive<SleepReporter.Command> createReceive() {
         return newReceiveBuilder()
@@ -57,5 +56,21 @@ public class SleepReporter extends AbstractBehavior<SleepReporter.Command>{
         return this;
     }
 
-    
+     private Behavior<Command> onWrappedBackendResponse(WrappedBackendResponse wrapped) {
+      Backend.Response response = wrapped.response;
+      if (response instanceof Backend.JobStarted) {
+        Backend.JobStarted rsp = (Backend.JobStarted) response;
+        getContext().getLog().info("Started {}", rsp.taskId);
+      } else if (response instanceof Backend.JobProgress) {
+        Backend.JobProgress rsp = (Backend.JobProgress) response;
+        getContext().getLog().info("Progress {}", rsp.taskId);
+      } else if (response instanceof Backend.JobCompleted) {
+        Backend.JobCompleted rsp = (Backend.JobCompleted) response;
+        getContext().getLog().info("Completed {}", rsp.taskId);
+        inProgress.get(rsp.taskId).tell(rsp.result);
+        inProgress.remove(rsp.taskId);
+      } else {
+        return Behaviors.unhandled();
+      }
+     }//end of onWrappedBackendResponse
 }
