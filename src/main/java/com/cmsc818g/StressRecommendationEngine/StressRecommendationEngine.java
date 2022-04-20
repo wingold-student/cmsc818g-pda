@@ -96,18 +96,14 @@ public class StressRecommendationEngine extends AbstractBehavior<StressRecommend
     }
 
     public static class LocationReporterToRecommendation implements Command {
-      //recommendation engines tells controller the treatment method
-      // or it directly talks to the UI Manager
-      public final String location;
+      public final String location; //get location from location reporter
       public LocationReporterToRecommendation(String location) {
         this.location = location;
       }
     }
 
     public static class ScheduleReporterToRecommendation implements Command {
-      //recommendation engines tells controller the treatment method
-      // or it directly talks to the UI Manager
-      public final String message;
+      public final String message; //get schedule from schedule reporter
 
       public ScheduleReporterToRecommendation(String message) {
         this.message = message;
