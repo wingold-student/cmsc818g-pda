@@ -2,7 +2,7 @@ package com.cmsc818g.StressContextEngine.Reporters;
 
 import java.util.Optional;
 
-import com.cmsc818g.StressRecommendationEngine.StressRecommendationEngine.SleepReporterToRecommendation;
+import com.cmsc818g.StressRecommendationEngine.StressRecommendationEngine;
 
 import akka.actor.typed.ActorRef;
 import akka.actor.typed.Behavior;
@@ -12,33 +12,30 @@ import akka.actor.typed.javadsl.ActorContext;
 import akka.actor.typed.javadsl.Behaviors;
 import akka.actor.typed.javadsl.Receive;
 
-public class SleepReporter extends AbstractBehavior<BloodPressureReporter.Command>{
+public class SleepReporter extends AbstractBehavior<SleepReporter.Command>{
 
-    public interface Command extends BloodPressureReporter.Command {}
+    public static Behavior<SleepReporter.Command> create(String reporterId, String groupId) {
+        return Behaviors.setup(context -> new SleepReporter(context, reporterId, groupId));
+    }
+
+    public interface Command {}
 
     public static final class AskSleepHours implements Command {
-        private ActorRef<SleepReporterToRecommendation> replyTo;
+        private ActorRef<StressRecommendationEngine.SleepReporterToRecommendation> replyTo;
         
 
-        public AskSleepHours(ActorRef<SleepReporterToRecommendation> replyTo) {
+        public AskSleepHours(ActorRef<StressRecommendationEngine.SleepReporterToRecommendation> replyTo) {
             this.replyTo = replyTo;
             
         }
     }
 
-    
-
-    public static Behavior<BloodPressureReporter.Command> create(String reporterId, String groupId) {
-        return Behaviors.setup(context -> new SleepReporter(context, reporterId, groupId));
-    }
-
-    // Just some instance variables
-    private final ActorContext<BloodPressureReporter.Command> context;
-
+    private final ActorContext<SleepReporter.Command> context;
     private final String reporterId;
     private final String groupId;
+     
 
-    private SleepReporter(ActorContext<BloodPressureReporter.Command> context, String reporterId, String groupId) {
+    private SleepReporter(ActorContext<SleepReporter.Command> context, String reporterId, String groupId) {
         super(context);
         this.reporterId = reporterId;
         this.groupId = groupId;
@@ -49,22 +46,16 @@ public class SleepReporter extends AbstractBehavior<BloodPressureReporter.Comman
 
 
     @Override
-    public Receive<BloodPressureReporter.Command> createReceive() {
+    public Receive<SleepReporter.Command> createReceive() {
         return newReceiveBuilder()
             .onMessage(AskSleepHours.class, this::onAskSleepHours)
-            .onMessage(BloodPressureReporter.Passivate.class, m -> Behaviors.stopped())
-            .onSignal(PostStop.class, signal -> onPostStop())
             .build();
     }
 
-    private Behavior<BloodPressureReporter.Command> onAskSleepHours(AskSleepHours msg) {
-        //msg.replyTo.tell(new onSleepReporterResponse(msg.requestId, this.IsFreeAt(msg.dateTimeStr)));
+    private Behavior<SleepReporter.Command> onAskSleepHours(AskSleepHours msg) {
+        msg.replyTo.tell(new StressRecommendationEngine.SleepReporterToRecommendation(12)); //example sleep hours:12
         return this;
     }
 
-    private SleepReporter onPostStop() {
-        getContext().getLog().info("Scheduler reporter {} stopped", this.reporterId);
-        return this;
-    }
     
 }

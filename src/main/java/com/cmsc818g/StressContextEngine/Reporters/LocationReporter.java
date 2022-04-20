@@ -3,6 +3,8 @@ package com.cmsc818g.StressContextEngine.Reporters;
 import java.util.Optional;
 
 
+import com.cmsc818g.StressRecommendationEngine.StressRecommendationEngine;
+
 import akka.actor.typed.ActorRef;
 import akka.actor.typed.Behavior;
 import akka.actor.typed.PostStop;
@@ -13,28 +15,49 @@ import akka.actor.typed.javadsl.Receive;
 
 public class LocationReporter extends AbstractBehavior<LocationReporter.Command>{
 
-    public interface Command extends LocationReporter.Command {}
+    public static Behavior<LocationReporter.Command> create(String reporterId, String groupId) {
+        return Behaviors.setup(context -> new LocationReporter(context, reporterId, groupId));
+    }
 
-    public static final class AskIsFreeAt implements Command {
-        final long requestId;
-        final String dateTimeStr;
-        final ActorRef<RespondIsFreeAt> replyTo;
+    public interface Command {}
 
-        public AskIsFreeAt(long requestId, String dateTimeStr, ActorRef<RespondIsFreeAt> replyTo) {
-            this.requestId = requestId;
-            this.dateTimeStr = dateTimeStr;
+    public static final class AskLocation implements Command {
+        private ActorRef<StressRecommendationEngine.LocationReporterToRecommendation> replyTo;
+        
+
+        public AskLocation(ActorRef<StressRecommendationEngine.LocationReporterToRecommendation> replyTo) {
             this.replyTo = replyTo;
+            
         }
     }
 
-    public static final class RespondIsFreeAt {
-        final long requestId;
-        final Optional<Boolean> value;
+    private final ActorContext<LocationReporter.Command> context;
+    private final String reporterId;
+    private final String groupId;
+     
 
-        public RespondIsFreeAt(long requestId, Optional<Boolean> value) {
-            this.requestId = requestId;
-            this.value = value;
-        }
+    private LocationReporter(ActorContext<LocationReporter.Command> context, String reporterId, String groupId) {
+        super(context);
+        this.reporterId = reporterId;
+        this.groupId = groupId;
+        this.context = context;
+
+        context.getLog().info("Sleep Reporter with id {}-{} started", reporterId, groupId);
     }
+
+
+    @Override
+    public Receive<LocationReporter.Command> createReceive() {
+        return newReceiveBuilder()
+            .onMessage(AskLocation.class, this::onAskLocation)
+            .build();
+    }
+
+    private Behavior<LocationReporter.Command> onAskLocation(AskLocation msg) {
+        msg.replyTo.tell(new StressRecommendationEngine.LocationReporterToRecommendation("class room")); //example location: class room
+        return this;
+    }
+
+    
     
 }
