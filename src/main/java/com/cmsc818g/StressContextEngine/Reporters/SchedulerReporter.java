@@ -1,9 +1,14 @@
 package com.cmsc818g.StressContextEngine.Reporters;
 
 import java.time.format.DateTimeFormatter;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Optional;
+
+import com.cmsc818g.StressEntityManager.Entities.CalendarCommand;
 
 import akka.actor.typed.ActorRef;
 import akka.actor.typed.Behavior;
@@ -12,15 +17,20 @@ import akka.actor.typed.javadsl.AbstractBehavior;
 import akka.actor.typed.javadsl.ActorContext;
 import akka.actor.typed.javadsl.Behaviors;
 import akka.actor.typed.javadsl.Receive;
+import akka.http.javadsl.model.DateTime;
 
 // AbstractBehavior<What type of messages it will receive>
-public class SchedulerReporter extends AbstractBehavior<BloodPressureReporter.Command> {
+public class SchedulerReporter extends AbstractBehavior<SchedulerReporter.Command> {
+
+    /************************************* 
+     * MESSAGES IT RECEIVES 
+     *************************************/
 
     /**
      * Since we will want more than a single type of message, we'll create an
      * empty interface that all necessary command messages can implement
      */
-    public interface Command extends BloodPressureReporter.Command {}
+    public interface Command {}
 
     /**
      * This is just one type of command message we may receive. Another actor can
@@ -100,41 +110,108 @@ public class SchedulerReporter extends AbstractBehavior<BloodPressureReporter.Co
         }
     }
 
+    public static final class AddCalendar implements Command {
+        final ActorRef<CalendarCommand> calendarEntity;
+        final String calendarName;
+
+        public AddCalendar(ActorRef<CalendarCommand> calendarEntity, String calendarName) {
+            this.calendarEntity = calendarEntity;
+            this.calendarName = calendarName;
+        }
+    }
+
+    public static final class GetEventsInRange implements Command {
+        final ActorRef<ResponseEventsInRange> replyTo;
+        final Optional<String> calendarName;
+        final boolean acrossCalendars;
+        final DateTime start;
+        final DateTime end;
+
+        public GetEventsInRange(ActorRef<ResponseEventsInRange> replyTo,
+                                Optional<String> calendarName,
+                                DateTime start,
+                                DateTime end,
+                                boolean acrossCalendars) {
+            this.replyTo = replyTo;
+            this.calendarName = calendarName;
+            this.acrossCalendars = acrossCalendars;
+            this.start = start;
+            this.end = end;
+        }
+    }
+
+    public static final class SubscribeForNewEvents implements Command {
+        final ActorRef<Response> subscriber;
+
+        public SubscribeForNewEvents(ActorRef<Response> subscriber) {
+            this.subscriber = subscriber;
+        }
+    }
+
+    public static final class UnsubscribeForNewEvents implements Command {
+        final ActorRef<Response> subscriber;
+
+        public UnsubscribeForNewEvents(ActorRef<Response> subscriber) {
+            this.subscriber = subscriber;
+        }
+    }
+
+    /************************************* 
+     * MESSAGES IT SENDS
+     *************************************/
+    public interface Response {}
+
+    public static final class ResponseEventsInRange implements Response {
+        final HashMap<String, Object> events; // TODO: Update to actual EventObject when created
+
+        public ResponseEventsInRange(HashMap<String, Object> events) {
+            this.events = events;
+        }
+    }
+
+    public static final class NotifyNewEvent implements Response {
+        final DateTime time;
+        final Duration length;
+        final String calendarType;
+
+        public NotifyNewEvent(DateTime time, Duration length, String calendarType) {
+            this.time = time;
+            this.length = length;
+            this.calendarType = calendarType;
+        }
+    }
+
+
+    /************************************* 
+     * CREATION 
+     *************************************/
+
     /**
      * Actors are essentially created via a Factory.
      * So upon a creation, they are provided any necessary setup data and their context.
      * 
      * Behaviors define well, how an actor behaves. But their behavior can change in the middle
      * of execution. This is why we return it not only here, but after processing messages too.
-     *  
-     * @param reporterId This context reporter instance's identifier. Could be another other
-     *  type of grouping/way of identifying an instance of this actor.
      */
-    public static Behavior<BloodPressureReporter.Command> create(String reporterId, String groupId) {
-        return Behaviors.setup(context -> new SchedulerReporter(context, reporterId, groupId));
+    public static Behavior<Command> create() {
+        return Behaviors.setup(context -> new SchedulerReporter(context));
     }
 
     // Just some instance variables
-    private final ActorContext<BloodPressureReporter.Command> context;
-
-    private final String reporterId;
-    private final String groupId;
-
     private Optional<String> curEvent;
+    private HashMap<String, ActorRef<CalendarCommand>> calendarEntities;
+    private ArrayList<ActorRef<Response>> newEventSubscribers; // TODO: Use Router later?
 
     /**
      * Constructor for this actor
-     * @param context Not super clear what is within the context
-     * @param contextRepId Some way of identifying this actor instance
      */
-    private SchedulerReporter(ActorContext<BloodPressureReporter.Command> context, String reporterId, String groupId) {
+    private SchedulerReporter(ActorContext<Command> context) {
         super(context);
-        this.reporterId = reporterId;
-        this.groupId = groupId;
-        this.context = context;
         this.curEvent = Optional.empty();
+        this.calendarEntities = new HashMap<>();
+        this.newEventSubscribers = new ArrayList<>();
 
-        context.getLog().info("Scheduler Reporter with id {}-{} started", reporterId, groupId);
+        context.getLog().info("Scheduler Reporter");
     }
 
     /**
@@ -150,12 +227,12 @@ public class SchedulerReporter extends AbstractBehavior<BloodPressureReporter.Co
      */
     private Optional<Boolean> IsFreeAt(String dateTimeStr) {
         try {
-            this.context.getLog().info("Scheduler Reporter {} got date time str: {}", this.reporterId, dateTimeStr);
+            getContext().getLog().info("Scheduler Reporter got date time str: {}", dateTimeStr);
             LocalDateTime recvDateTime = LocalDateTime.parse(dateTimeStr);
             DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("MM-dd-yyyy HH:mm:ss");
             String recvDateTimeStr = recvDateTime.format(dateFormatter);
 
-            this.context.getLog().info("Scheduler Reporter {} created date time: {}", this.reporterId, recvDateTimeStr);
+            getContext().getLog().info("Scheduler Reporter created date time: {}", recvDateTimeStr);
 
             boolean isFree = this.curEvent.isEmpty();
             return Optional.of(isFree);
@@ -163,6 +240,10 @@ public class SchedulerReporter extends AbstractBehavior<BloodPressureReporter.Co
             return Optional.empty();
         }
     }
+
+    /************************************* 
+     * MESSAGE HANDLING 
+     *************************************/
 
     /**
      * Pattern match on the command message you received. You can decide what
@@ -177,11 +258,12 @@ public class SchedulerReporter extends AbstractBehavior<BloodPressureReporter.Co
      * are other methods I don't know of yet too.
      */
     @Override
-    public Receive<BloodPressureReporter.Command> createReceive() {
+    public Receive<Command> createReceive() {
         return newReceiveBuilder()
             .onMessage(AskIsFreeAt.class, this::onAskIsFreeAt)
             .onMessage(AddToSchedule.class, this::onAddToSchedule)
-            .onMessage(BloodPressureReporter.Passivate.class, m -> Behaviors.stopped())
+            .onMessage(AddCalendar.class, this::onAddCalendar)
+            .onMessage(GetEventsInRange.class, this::onGetEventsInRange)
             .onSignal(PostStop.class, signal -> onPostStop())
             .build();
     }
@@ -195,7 +277,7 @@ public class SchedulerReporter extends AbstractBehavior<BloodPressureReporter.Co
      * @param msg The command which is asking if the user is free at a date and time
      * @return the behavior of this actor. It didn't change
      */
-    private Behavior<BloodPressureReporter.Command> onAskIsFreeAt(AskIsFreeAt msg) {
+    private Behavior<Command> onAskIsFreeAt(AskIsFreeAt msg) {
         msg.replyTo.tell(new RespondIsFreeAt(msg.requestId, this.IsFreeAt(msg.dateTimeStr)));
         return this;
     }
@@ -206,7 +288,7 @@ public class SchedulerReporter extends AbstractBehavior<BloodPressureReporter.Co
      * 
      * (Meaning this will fail upon a second AddToSchedule message)
      */
-    private Behavior<BloodPressureReporter.Command> onAddToSchedule(AddToSchedule msg) {
+    private Behavior<Command> onAddToSchedule(AddToSchedule msg) {
         Optional<Boolean> isFree = this.IsFreeAt(msg.dateTimeStr);
         boolean addedEvent = !isFree.isEmpty() && isFree.get();
 
@@ -217,12 +299,22 @@ public class SchedulerReporter extends AbstractBehavior<BloodPressureReporter.Co
         msg.replyTo.tell(new ScheduleAddedTo(msg.requestId, addedEvent));
         return this;
     }
+
+    private Behavior<Command> onAddCalendar(AddCalendar msg) {
+        calendarEntities.put(msg.calendarName, msg.calendarEntity);
+        return this;
+    }
+
+    private Behavior<Command> onGetEventsInRange(GetEventsInRange msg) {
+        msg.replyTo.tell(new ResponseEventsInRange(new HashMap<String, Object>()));
+        return this;
+    }
     
     /**
      * What to do when shut down by a supervisor
      */
     private SchedulerReporter onPostStop() {
-        getContext().getLog().info("Scheduler reporter {} stopped", this.reporterId);
+        getContext().getLog().info("Scheduler reporter stopped");
         return this;
     }
 }
