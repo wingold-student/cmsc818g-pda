@@ -1,8 +1,10 @@
 package com.cmsc818g.StressContextEngine.Reporters;
 
 import java.time.format.DateTimeFormatter;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Optional;
 
@@ -19,6 +21,10 @@ import akka.http.javadsl.model.DateTime;
 
 // AbstractBehavior<What type of messages it will receive>
 public class SchedulerReporter extends AbstractBehavior<SchedulerReporter.Command> {
+
+    /************************************* 
+     * MESSAGES IT RECEIVES 
+     *************************************/
 
     /**
      * Since we will want more than a single type of message, we'll create an
@@ -134,7 +140,28 @@ public class SchedulerReporter extends AbstractBehavior<SchedulerReporter.Comman
         }
     }
 
-    public static final class ResponseEventsInRange {
+    public static final class SubscribeForNewEvents implements Command {
+        final ActorRef<Response> subscriber;
+
+        public SubscribeForNewEvents(ActorRef<Response> subscriber) {
+            this.subscriber = subscriber;
+        }
+    }
+
+    public static final class UnsubscribeForNewEvents implements Command {
+        final ActorRef<Response> subscriber;
+
+        public UnsubscribeForNewEvents(ActorRef<Response> subscriber) {
+            this.subscriber = subscriber;
+        }
+    }
+
+    /************************************* 
+     * MESSAGES IT SENDS
+     *************************************/
+    public interface Response {}
+
+    public static final class ResponseEventsInRange implements Response {
         final HashMap<String, Object> events; // TODO: Update to actual EventObject when created
 
         public ResponseEventsInRange(HashMap<String, Object> events) {
@@ -142,6 +169,22 @@ public class SchedulerReporter extends AbstractBehavior<SchedulerReporter.Comman
         }
     }
 
+    public static final class NotifyNewEvent implements Response {
+        final DateTime time;
+        final Duration length;
+        final String calendarType;
+
+        public NotifyNewEvent(DateTime time, Duration length, String calendarType) {
+            this.time = time;
+            this.length = length;
+            this.calendarType = calendarType;
+        }
+    }
+
+
+    /************************************* 
+     * CREATION 
+     *************************************/
 
     /**
      * Actors are essentially created via a Factory.
@@ -157,6 +200,7 @@ public class SchedulerReporter extends AbstractBehavior<SchedulerReporter.Comman
     // Just some instance variables
     private Optional<String> curEvent;
     private HashMap<String, ActorRef<CalendarCommand>> calendarEntities;
+    private ArrayList<ActorRef<Response>> newEventSubscribers; // TODO: Use Router later?
 
     /**
      * Constructor for this actor
@@ -164,6 +208,8 @@ public class SchedulerReporter extends AbstractBehavior<SchedulerReporter.Comman
     private SchedulerReporter(ActorContext<Command> context) {
         super(context);
         this.curEvent = Optional.empty();
+        this.calendarEntities = new HashMap<>();
+        this.newEventSubscribers = new ArrayList<>();
 
         context.getLog().info("Scheduler Reporter");
     }
@@ -194,6 +240,10 @@ public class SchedulerReporter extends AbstractBehavior<SchedulerReporter.Comman
             return Optional.empty();
         }
     }
+
+    /************************************* 
+     * MESSAGE HANDLING 
+     *************************************/
 
     /**
      * Pattern match on the command message you received. You can decide what
