@@ -15,12 +15,24 @@ import akka.actor.typed.javadsl.ActorContext;
 import akka.actor.typed.javadsl.Behaviors;
 import akka.actor.typed.javadsl.Receive;
 import akka.http.javadsl.model.DateTime;
+import akka.pattern.StatusReply;
 
 public class PhoneEntity extends AbstractBehavior<PhoneEntity.Command> {
     /************************************* 
      * MESSAGES IT RECEIVES 
      *************************************/
     public interface Command {}
+
+    // TODO: For demo/testing purposes only
+    public static final class ReadRowOfData implements Command {
+        final int rowNumber;
+        final ActorRef<StatusReply<Boolean>> replyTo;
+
+        public ReadRowOfData(int rowNumber, ActorRef<StatusReply<Boolean>> replyTo) {
+            this.rowNumber = rowNumber;
+            this.replyTo = replyTo;
+        }
+    }
 
     public static final class AskingForSleepData implements Command {
         final ActorRef<Response> replyTo;
@@ -104,11 +116,16 @@ public class PhoneEntity extends AbstractBehavior<PhoneEntity.Command> {
     @Override
     public Receive<Command> createReceive() {
         return newReceiveBuilder()
+            .onMessage(ReadRowOfData.class, this::onReadRowOfData)
             .onMessage(AskingForSleepData.class, this::onAskingForSleepData)
             .onMessage(AskingForLocation.class, this::onAskingForLocation)
             .onMessage(SubscribeForMediaEvents.class, this::onSubscribeForMediaEvents)
             .onSignal(PostStop.class, signal -> onPostStop())
             .build();
+    }
+
+    private Behavior<Command> onReadRowOfData(ReadRowOfData msg) {
+        return this;
     }
 
     private Behavior<Command> onAskingForSleepData(AskingForSleepData msg) {
