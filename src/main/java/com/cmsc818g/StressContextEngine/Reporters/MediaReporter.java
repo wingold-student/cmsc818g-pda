@@ -3,7 +3,7 @@ package com.cmsc818g.StressContextEngine.Reporters;
 import java.util.Optional;
 import java.util.Stack;
 
-import com.cmsc818g.StressEntityManager.Entities.PhoneCommand;
+import com.cmsc818g.StressEntityManager.Entities.PhoneEntity;
 
 import akka.actor.typed.ActorRef;
 import akka.actor.typed.Behavior;
@@ -61,17 +61,17 @@ public class MediaReporter extends AbstractBehavior<MediaReporter.Command> {
     public interface Response {}
 
     public static final class RecentPlaysResponse implements Response {
-        final Media[] recentPlays;
+        final PhoneEntity.Media[] recentPlays;
 
-        public RecentPlaysResponse(Media[] recentPlays) {
+        public RecentPlaysResponse(PhoneEntity.Media[] recentPlays) {
             this.recentPlays = recentPlays;
         }
     }
 
     public static final class PlaysAtTimeResponse implements Response {
-        final Media[] plays;
+        final PhoneEntity.Media[] plays;
 
-        public PlaysAtTimeResponse(Media[] plays) {
+        public PlaysAtTimeResponse(PhoneEntity.Media[] plays) {
             this.plays = plays;
         }
     }
@@ -85,8 +85,8 @@ public class MediaReporter extends AbstractBehavior<MediaReporter.Command> {
     }
 
 
-    private ActorRef<PhoneCommand> phoneEntity;
-    private Stack<Media> recentPlays;
+    private ActorRef<PhoneEntity.Command> phoneEntity;
+    private Stack<PhoneEntity.Media> recentPlays;
 
     public MediaReporter(ActorContext<Command> context) {
         super(context);
@@ -124,15 +124,4 @@ public class MediaReporter extends AbstractBehavior<MediaReporter.Command> {
         return this;
     }
 
-
-    private class Media {
-        private String name;
-        private String genre;
-        private DateTime playedAt;
-
-        public Media(String name, String genre) {
-            this.name = name;
-            this.genre = genre;
-        }
-    }
 }
