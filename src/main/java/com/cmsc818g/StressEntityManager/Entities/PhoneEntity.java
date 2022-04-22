@@ -129,6 +129,7 @@ public class PhoneEntity extends AbstractBehavior<PhoneEntity.Command> {
 
         this.lastLocation = Optional.empty();
         this.lastSleepHours = Optional.empty();
+        this.lastTimeRead = Optional.empty();
     }
 
 
