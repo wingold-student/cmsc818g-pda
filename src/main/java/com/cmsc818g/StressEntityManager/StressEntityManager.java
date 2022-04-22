@@ -153,7 +153,8 @@ public class StressEntityManager extends AbstractBehavior<StressEntityManager.Co
           if (response != null) {
             return new DatabaseReadStatus("Phone entity successfully read row: " + rowNumber, true);
           } else {
-            return new DatabaseReadStatus("Phone entity failed to read row: " + rowNumber, false);
+            getContext().getLog().info("Phone entity failed to read row: " + rowNumber);
+            return new StopPeriodicDatabaseReading();
           }
         }
       );
@@ -167,7 +168,8 @@ public class StressEntityManager extends AbstractBehavior<StressEntityManager.Co
           if (response != null) {
             return new DatabaseReadStatus("Calendar entity successfully read row: " + rowNumber, true);
           } else {
-            return new DatabaseReadStatus("Calendar entity failed to read row: " + rowNumber, false);
+            getContext().getLog().info("Calendar entity failed to read row: " + rowNumber, false);
+            return new StopPeriodicDatabaseReading();
           }
         }
       );
@@ -181,7 +183,8 @@ public class StressEntityManager extends AbstractBehavior<StressEntityManager.Co
           if (response != null) {
             return new DatabaseReadStatus("Smart Watch entity successfully read row: " + rowNumber, true);
           } else {
-            return new DatabaseReadStatus("Smart Watch entity failed to read row: " + rowNumber, false);
+            getContext().getLog().info("Smart Watch entity failed to read row: " + rowNumber, false);
+            return new StopPeriodicDatabaseReading();
           }
         }
       );
