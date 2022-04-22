@@ -31,11 +31,27 @@
   </dependencyManagement>
 
   <dependencies>
+    <!-- Testing -->
     <dependency>
       <groupId>junit</groupId>
       <artifactId>junit</artifactId>
       <version>4.11</version>
       <scope>test</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.mockito</groupId>
+      <artifactId>mockito-core</artifactId>
+      <version>4.5.0</version>
+      <scope>test</scope>
+    </dependency>
+
+
+    <!-- Databases -->
+    <dependency>
+      <groupId>org.xerial</groupId>
+      <artifactId>sqlite-jdbc</artifactId>
+      <version>3.8.7</version>
     </dependency>
 
     <!-- Akka dependencies -->
