@@ -26,3 +26,5 @@ hs_err_pid*
 .vscode
 
 target/
+
+.DS_Store
