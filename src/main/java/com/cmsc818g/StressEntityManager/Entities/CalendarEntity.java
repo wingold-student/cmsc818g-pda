@@ -170,7 +170,7 @@ public class CalendarEntity extends AbstractBehavior<CalendarCommand> {
             results = statement.executeQuery();
             results.next();
 
-            Optional<String> eventName = Optional.of(results.getString("Schedule"));
+            Optional<String> eventName = Optional.ofNullable(results.getString("Schedule"));
             String dateTimeStr = results.getString("DateTime");
             Optional<DateTime> eventTime = DateTime.fromIsoDateTimeString(dateTimeStr);
 

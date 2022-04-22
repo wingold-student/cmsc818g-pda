@@ -144,8 +144,8 @@ public class SmartWatchDevice extends AbstractBehavior<SmartWatchDevice.Command>
             results = statement.executeQuery();
             results.next();
 
-            this.lastHeartbeat = Optional.of(results.getInt("Heartbeat"));
-            this.lastBloodPressure = Optional.of(results.getString("Bloodpressure"));
+            this.lastHeartbeat = Optional.ofNullable(results.getInt("Heartbeat"));
+            this.lastBloodPressure = Optional.ofNullable(results.getString("Bloodpressure"));
 
             String dateTimeStr = results.getString("DateTime");
             this.lastReadingTime = DateTime.fromIsoDateTimeString(dateTimeStr);

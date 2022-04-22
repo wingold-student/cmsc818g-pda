@@ -177,8 +177,8 @@ public class PhoneEntity extends AbstractBehavior<PhoneEntity.Command> {
 
             results = statement.executeQuery();
             results.next();
-            this.lastLocation = Optional.of(results.getString("Location"));
-            this.lastSleepHours = Optional.of(results.getInt("SleepHours"));
+            this.lastLocation = Optional.ofNullable(results.getString("Location"));
+            this.lastSleepHours = Optional.ofNullable(results.getInt("SleepHours"));
             String dateTimeStr = results.getString("DateTime");
             this.lastTimeRead = DateTime.fromIsoDateTimeString(dateTimeStr);
 
