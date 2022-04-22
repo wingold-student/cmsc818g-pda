@@ -1,5 +1,6 @@
 package com.cmsc818g;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import com.cmsc818g.StressContextEngine.StressContextEngine;
 import com.cmsc818g.StressDetectionEngine.StressDetectionEngine;
@@ -38,7 +39,11 @@ public class StressManagementController extends AbstractBehavior<StressManagemen
         super(context); 
         getContext().getLog().info("Controller Actor created");
 
-        child_EntityManager = context.spawn(StressEntityManager.create(), "StressEntityManager");
+        // TODO: THESE ARE TEMPORARY
+        String databaseURI = "jdbc:sqlite:src/main/resources/DemoScenario.db";
+        String tableName = "ScenarioForDemo";
+
+        child_EntityManager = context.spawn(StressEntityManager.create(databaseURI, tableName), "StressEntityManager");
         child_EntityManager.tell(new StressEntityManager.entityManagerGreet(getContext().getSelf()));
 
         child_ContextEngine = context.spawn(StressContextEngine.create(), "StressContextEngine");
@@ -53,6 +58,7 @@ public class StressManagementController extends AbstractBehavior<StressManagemen
         child_UIManager = context.spawn(StressUIManager.create(), "StressUIManager");
         // Should I add UI Manager tell?
   
+        child_EntityManager.tell(new StressEntityManager.StartPeriodicDatabaseReading(Duration.ofSeconds(1L)));
     }
 
     public static void controllerProcess() {
