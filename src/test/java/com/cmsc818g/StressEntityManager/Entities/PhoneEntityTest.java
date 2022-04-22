@@ -1,31 +1,20 @@
 package com.cmsc818g.StressEntityManager.Entities;
 
-import java.lang.reflect.Method;
-import java.sql.Connection;
-import java.sql.Statement;
-
 import com.cmsc818g.StressEntityManager.StressEntityManager;
 
-import org.junit.After;
-import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.Test;
 
-import java.util.Optional;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Mockito.*;
 
 import akka.Done;
-import akka.actor.testkit.typed.javadsl.ActorTestKit;
 import akka.actor.testkit.typed.javadsl.TestKitJunitResource;
 import akka.actor.testkit.typed.javadsl.TestProbe;
 import akka.actor.typed.ActorRef;
-import akka.actor.typed.scaladsl.Behaviors;
 import akka.pattern.StatusReply;
-import akka.testkit.TestActorRef;
 
 public class PhoneEntityTest {
     @ClassRule public static final TestKitJunitResource testkit = new TestKitJunitResource();
