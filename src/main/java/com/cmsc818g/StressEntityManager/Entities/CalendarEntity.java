@@ -168,26 +168,28 @@ public class CalendarEntity extends AbstractBehavior<CalendarCommand> {
             statement.setInt(1, msg.rowNumber);
 
             results = statement.executeQuery();
-            results.next();
 
-            Optional<String> eventName = Optional.ofNullable(results.getString("Schedule"));
-            String dateTimeStr = results.getString("DateTime");
-            Optional<DateTime> eventTime = DateTime.fromIsoDateTimeString(dateTimeStr);
+            if (results.next()) {
+                Optional<String> eventName = Optional.ofNullable(results.getString("Schedule"));
+                String dateTimeStr = results.getString("DateTime");
+                Optional<DateTime> eventTime = DateTime.fromIsoDateTimeString(dateTimeStr);
 
-            if (eventName.isPresent() && eventTime.isPresent()) {
-                Duration tmpDuration = Duration.ofMinutes(30L); // TODO: TEMPORARY
-                Optional.of(Duration.ofDays(1));
-                Event event = new Event(eventName.get(), eventTime.get(), tmpDuration, "");
-                this.currentEvent = Optional.of(event);
+                if (eventName.isPresent() && eventTime.isPresent()) {
+                    Duration tmpDuration = Duration.ofMinutes(30L); // TODO: TEMPORARY
+                    Optional.of(Duration.ofDays(1));
+                    Event event = new Event(eventName.get(), eventTime.get(), tmpDuration, "");
+                    this.currentEvent = Optional.of(event);
+                }
+
+                results.close();
+                msg.replyTo.tell(StatusReply.Ack());
+            } else {
+                msg.replyTo.tell(StatusReply.error("No results"));
             }
 
-            results.close();
-            msg.replyTo.tell(StatusReply.Ack());
-
         } catch (SQLException e) {
-            getContext().getLog().error("Failed to query the with error {}", e);
+            getContext().getLog().error("Failed to query the with error: ", e);
             msg.replyTo.tell(StatusReply.error("Failed query"));
-            getContext().stop(getContext().getSelf());
         } 
 
         return this;

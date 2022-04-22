@@ -176,18 +176,21 @@ public class PhoneEntity extends AbstractBehavior<PhoneEntity.Command> {
             statement.setInt(1, msg.rowNumber);
 
             results = statement.executeQuery();
-            results.next();
-            this.lastLocation = Optional.ofNullable(results.getString("Location"));
-            this.lastSleepHours = Optional.ofNullable(results.getInt("SleepHours"));
-            String dateTimeStr = results.getString("DateTime");
-            this.lastTimeRead = DateTime.fromIsoDateTimeString(dateTimeStr);
+            if (results.next()) {
+                this.lastLocation = Optional.ofNullable(results.getString("Location"));
+                this.lastSleepHours = Optional.ofNullable(results.getInt("SleepHours"));
+                String dateTimeStr = results.getString("DateTime");
+                this.lastTimeRead = DateTime.fromIsoDateTimeString(dateTimeStr);
 
-            results.close();
-            msg.replyTo.tell(StatusReply.Ack());
+                results.close();
+                msg.replyTo.tell(StatusReply.Ack());
+            } else {
+                msg.replyTo.tell(StatusReply.error("No results"));
+            }
 
         } catch (SQLException e) {
-            getContext().getLog().error("Failed to query the with error {}", e);
-            getContext().stop(getContext().getSelf());
+            getContext().getLog().error("Failed to query the with error: ", e);
+            msg.replyTo.tell(StatusReply.error("Failed query"));
         } 
 
         return this;

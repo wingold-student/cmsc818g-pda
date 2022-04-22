@@ -9,7 +9,6 @@ import akka.actor.typed.javadsl.ActorContext;
 import akka.actor.typed.javadsl.Behaviors;
 import akka.actor.typed.javadsl.Receive;
 import akka.http.javadsl.model.DateTime;
-import akka.japi.Option;
 import akka.pattern.StatusReply;
 
 import java.sql.Connection;
@@ -142,21 +141,22 @@ public class SmartWatchDevice extends AbstractBehavior<SmartWatchDevice.Command>
             statement.setInt(1, msg.rowNumber);
 
             results = statement.executeQuery();
-            results.next();
+            if (results.next()) {
 
-            this.lastHeartbeat = Optional.ofNullable(results.getInt("Heartbeat"));
-            this.lastBloodPressure = Optional.ofNullable(results.getString("Bloodpressure"));
+                this.lastHeartbeat = Optional.ofNullable(results.getInt("Heartbeat"));
+                this.lastBloodPressure = Optional.ofNullable(results.getString("Bloodpressure"));
 
-            String dateTimeStr = results.getString("DateTime");
-            this.lastReadingTime = DateTime.fromIsoDateTimeString(dateTimeStr);
-
-            results.close();
-            msg.replyTo.tell(StatusReply.Ack());
+                String dateTimeStr = results.getString("DateTime");
+                this.lastReadingTime = DateTime.fromIsoDateTimeString(dateTimeStr);
+                results.close();
+                msg.replyTo.tell(StatusReply.Ack());
+            } else {
+                msg.replyTo.tell(StatusReply.error("No results"));
+            }
 
         } catch (SQLException e) {
-            getContext().getLog().error("Failed to query the with error {}", e);
+            getContext().getLog().error("Failed to query the with error: ", e);
             msg.replyTo.tell(StatusReply.error("Failed query"));
-            getContext().stop(getContext().getSelf());
         } 
 
         return this;
