@@ -1,6 +1,5 @@
 package com.cmsc818g.StressContextEngine.Reporters;
 
-import java.time.Duration;
 import java.util.Optional;
 
 import akka.actor.typed.ActorRef;
@@ -13,11 +12,11 @@ import akka.actor.typed.javadsl.Receive;
 import akka.http.javadsl.model.DateTime;
 import akka.pattern.StatusReply;
 
-public class BusynessReporter extends AbstractBehavior<BusynessReporter.Command> {
+public class BusynessReporter extends AbstractBehavior<Reporter.Command> {
     /************************************* 
      * MESSAGES IT RECEIVES 
      *************************************/
-    public interface Command {}
+    public interface Command extends Reporter.Command {}
 
     public static final class StartListening implements Command {
         final ActorRef<StatusReply<String>> replyTo;
@@ -78,14 +77,14 @@ public class BusynessReporter extends AbstractBehavior<BusynessReporter.Command>
      * CREATION 
      *************************************/
 
-    public static Behavior<Command> create(ActorRef<SchedulerReporter.Command> schedulerReporter) {
+    public static Behavior<Reporter.Command> create(ActorRef<Reporter.Command> schedulerReporter) {
         return Behaviors.setup(context -> new BusynessReporter(context, schedulerReporter));
     }
 
-    private ActorRef<SchedulerReporter.Command> schedulerReporter;
+    private ActorRef<Reporter.Command> schedulerReporter;
     private ActorRef<SchedulerReporter.Response> schedulerAdapter;
 
-    public BusynessReporter(ActorContext<Command> context, ActorRef<SchedulerReporter.Command> schedulerReporter) {
+    public BusynessReporter(ActorContext<Reporter.Command> context, ActorRef<Reporter.Command> schedulerReporter) {
         super(context);
         this.schedulerReporter = schedulerReporter;
         this.schedulerAdapter = context.messageAdapter(SchedulerReporter.Response.class, WrappedSchedulerResponse::new);
@@ -96,7 +95,7 @@ public class BusynessReporter extends AbstractBehavior<BusynessReporter.Command>
      *************************************/
 
     @Override
-    public Receive<Command> createReceive() {
+    public Receive<Reporter.Command> createReceive() {
         return newReceiveBuilder()
             .onMessage(StartListening.class, this::onStartListening)
             .onMessage(StopListening.class, this::onStopListening)
@@ -107,20 +106,20 @@ public class BusynessReporter extends AbstractBehavior<BusynessReporter.Command>
             .build();
     }
 
-    private Behavior<Command> onStartListening(StartListening msg) {
+    private Behavior<Reporter.Command> onStartListening(StartListening msg) {
         schedulerReporter.tell(new SchedulerReporter.SubscribeForNewEvents(schedulerAdapter));
         return this;
     }
 
-    private Behavior<Command> onStopListening(StopListening msg) {
+    private Behavior<Reporter.Command> onStopListening(StopListening msg) {
         return this;
     }
 
-    private Behavior<Command> onGetBusynessLevel(GetBusynessLevel msg) {
+    private Behavior<Reporter.Command> onGetBusynessLevel(GetBusynessLevel msg) {
         return this;
     }
 
-    private Behavior<Command> onWrappedSchedulerResponse(WrappedSchedulerResponse wrapped) {
+    private Behavior<Reporter.Command> onWrappedSchedulerResponse(WrappedSchedulerResponse wrapped) {
         SchedulerReporter.Response response = wrapped.response;
 
         if (response instanceof SchedulerReporter.NotifyNewEvent) {
