@@ -1,6 +1,8 @@
 package com.cmsc818g.StressUIManager;
 
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CompletionStage;
 
 import org.slf4j.Logger;
@@ -11,8 +13,12 @@ import akka.actor.typed.ActorSystem;
 import akka.actor.typed.Scheduler;
 import akka.actor.typed.javadsl.AskPattern;
 import akka.http.javadsl.marshallers.jackson.Jackson;
+import akka.http.javadsl.marshalling.sse.EventStreamMarshalling;
 import akka.http.javadsl.model.StatusCodes;
+import akka.http.javadsl.model.sse.ServerSentEvent;
 import akka.http.javadsl.server.Route;
+import akka.stream.javadsl.Source;
+
 import static akka.http.javadsl.server.Directives.*;
 
 /** WebRoutes just maintains what routes the server will serve.
@@ -28,10 +34,16 @@ public class WebRoutes {
     public final Duration askTimeout;
     public final Scheduler scheduler;
 
+    private final List<ServerSentEvent> events;
+
     public WebRoutes(ActorSystem<?> system, ActorRef<StressWebHandler.Command> webHandlerActor) {
         this.webHandlerActor = webHandlerActor;
         this.scheduler = system.scheduler();
         this.askTimeout = system.settings().config().getDuration("my-app.routes.ask-timeout");
+        events = new ArrayList<>();
+        events.add(ServerSentEvent.create("1"));
+        events.add(ServerSentEvent.create("2"));
+        events.add(ServerSentEvent.create("3"));
     }
 
     // Just a sample endpoint that will ask the StressWebHandler for test JSON data
@@ -54,6 +66,11 @@ public class WebRoutes {
                 get(() ->
                     onSuccess(getTestJSON(),
                         data -> complete(StatusCodes.OK, data, Jackson.marshaller()))
+                )
+            ),
+            path("sse", () ->
+                get(() -> 
+                    completeOK(Source.from(this.events), EventStreamMarshalling.toEventStream())
                 )
             )
         );
