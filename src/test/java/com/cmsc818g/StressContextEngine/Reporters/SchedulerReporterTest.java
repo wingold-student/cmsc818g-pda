@@ -20,6 +20,7 @@ public class SchedulerReporterTest {
 
     private ActorRef<SchedulerReporter.Command> schedReporter;
 
+    /*
     @Before
     public void before() {
         schedReporter = testKit.spawn(SchedulerReporter.create());
@@ -93,4 +94,5 @@ public class SchedulerReporterTest {
             SchedulerReporter.ResponseEventsInRange response = probe.receiveMessage();
             assertEquals(new HashMap<String, Object>(), response.events);
     }
+    */
 }
