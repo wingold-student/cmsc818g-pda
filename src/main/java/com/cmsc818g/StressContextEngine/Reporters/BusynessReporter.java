@@ -97,6 +97,7 @@ public class BusynessReporter extends AbstractBehavior<Reporter.Command> {
     @Override
     public Receive<Reporter.Command> createReceive() {
         return newReceiveBuilder()
+            .onMessage(Reporter.ReadRowOfData.class, this::onReadRowOfData)
             .onMessage(StartListening.class, this::onStartListening)
             .onMessage(StopListening.class, this::onStopListening)
             .onMessage(GetBusynessLevel.class, this::onGetBusynessLevel)
@@ -104,6 +105,11 @@ public class BusynessReporter extends AbstractBehavior<Reporter.Command> {
             .onMessage(GracefulShutdown.class, this::onGracefulShutdown)
             .onSignal(PostStop.class, signal -> onPostStop())
             .build();
+    }
+
+    private Behavior<Reporter.Command> onReadRowOfData(Reporter.ReadRowOfData msg) {
+        msg.replyTo.tell(new Reporter.StatusOfRead(true, "I did nothing...", getContext().getSelf().path()));
+        return this;
     }
 
     private Behavior<Reporter.Command> onStartListening(StartListening msg) {
