@@ -15,7 +15,6 @@ public class StressUIManager extends AbstractBehavior<StressUIManager.Command> {
         return Behaviors.setup(context -> new StressUIManager(context));
     }
 
-
     private ActorRef<StressWebServer.Command> webServerActor;
     private ActorRef<StressWebHandler.Command> webHandlerActor;
     private WebRoutes webRoutes;

@@ -12,6 +12,7 @@ import com.cmsc818g.StressEntityManager.Entities.SmartWatchDevice;
 import akka.Done;
 import akka.actor.typed.ActorRef;
 import akka.actor.typed.Behavior;
+import akka.actor.typed.PostStop;
 import akka.actor.typed.javadsl.AbstractBehavior;
 import akka.actor.typed.javadsl.ActorContext;
 import akka.actor.typed.javadsl.Behaviors;
@@ -122,6 +123,7 @@ public class StressEntityManager extends AbstractBehavior<StressEntityManager.Co
         .onMessage(TellEntitiesToRead.class, this::onTellEntitiesToRead)
         .onMessage(DatabaseReadStatus.class, this::onDatabaseReadStatus)
         .onMessage(entityManagerGreet.class, this::onEngineResponse)
+        .onSignal(PostStop.class, signal -> onPostStop())
         .build();
     }
 
@@ -210,6 +212,9 @@ public class StressEntityManager extends AbstractBehavior<StressEntityManager.Co
       return this;
     }
 
-
+    private StressEntityManager onPostStop() {
+      getContext().getLog().info("Entity Manager shutting down");
+      return this;
+  }
 
 }

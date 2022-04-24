@@ -10,22 +10,30 @@ import com.cmsc818g.StressContextEngine.Reporters.Reporter;
 
 import akka.actor.typed.ActorRef;
 import akka.actor.typed.Behavior;
+import akka.actor.typed.PostStop;
 import akka.actor.typed.javadsl.AbstractBehavior;
 import akka.actor.typed.javadsl.ActorContext;
 import akka.actor.typed.javadsl.Behaviors;
 import akka.actor.typed.javadsl.Receive;
+/*
+message from controller:
+    Detection engine start
+Collect data from:
+    reporters  
+Send to controller: 
+    Collected Health Information
+    Stress level
+*/
+
 public class StressDetectionEngine extends AbstractBehavior<StressDetectionEngine.Command> {
 
     public interface Command {}
     public static class detectionEngineGreet implements Command {
         public final ActorRef<StressManagementController.Command> replyTo;
-        public final StressManagementController.HealthInformation healthInfo; //send health info to detection engine
         public final ArrayList<String> list;
 
-        public detectionEngineGreet(ActorRef<StressManagementController.Command> ref, 
-                StressManagementController.HealthInformation info, ArrayList<String> list) {
+        public detectionEngineGreet(ActorRef<StressManagementController.Command> ref,  ArrayList<String> list) {
           this.replyTo = ref;
-          this.healthInfo = info;
           this.list = list;
         }
       }//end of class detectionEngineGreet
@@ -90,14 +98,15 @@ public class StressDetectionEngine extends AbstractBehavior<StressDetectionEngin
       .onMessage(LocationReporterToDetection.class, this::onLocationReporterResponse)
       .onMessage(ScheduleReporterToDetection.class, this::onScheduleReporterResponse)
       .onMessage(AdaptedBloodPressure.class, this::onAdaptedBloodPressure)
+      .onSignal(PostStop.class, signal -> onPostStop())
       .build();
     }
   
-    private Behavior<Command> onEngineResponse(detectionEngineGreet message) { //when receive message
+    private Behavior<Command> onEngineResponse(detectionEngineGreet message) { 
         //get information of connected entities
-        //StressManagementController.HealthInformation personalData = new StressManagementController.HealthInformation();
-        int level = 100 ; //stress level
-        message.replyTo.tell(new StressManagementController.DetectionEngineToController("stressLevel", level));       
+        StressManagementController.HealthInformation healthInfo = new StressManagementController.HealthInformation();
+        healthInfo.stressLevel = 100; //later detected stress level is set here
+        message.replyTo.tell(new StressManagementController.DetectionEngineToController("healthInfo", healthInfo));       
       return this;
     }
 
@@ -115,6 +124,12 @@ public class StressDetectionEngine extends AbstractBehavior<StressDetectionEngin
       getContext().getLog().info("Detector Got response from Schedule Reporter: {}", response.message); 
       return this;
     }
+
+    private StressDetectionEngine onPostStop() {
+      getContext().getLog().info("Detection Engine stopped");
+      return this;
+  }
+
 
     /**
      * This is just an example of how you might access the data from the reading

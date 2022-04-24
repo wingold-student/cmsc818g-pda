@@ -3,17 +3,16 @@ package com.cmsc818g.StressRecommendationEngine;
 import java.util.ArrayList;
 
 import com.cmsc818g.StressManagementController;
-import com.cmsc818g.StressContextEngine.Reporters.SleepReporter;
-
 import akka.actor.typed.ActorRef;
 import akka.actor.typed.Behavior;
+import akka.actor.typed.PostStop;
 import akka.actor.typed.javadsl.AbstractBehavior;
 import akka.actor.typed.javadsl.ActorContext;
 import akka.actor.typed.javadsl.Behaviors;
 import akka.actor.typed.javadsl.Receive;
 /*
 message from controller:
-    current stress level
+    current stress level (in healthInfo structure)
     past stress level
 Reporters to send msg to:
     Sleep Reporter
@@ -31,12 +30,14 @@ public class StressRecommendationEngine extends AbstractBehavior<StressRecommend
         public final ActorRef<StressManagementController.Command> replyTo;
         public final StressManagementController.HealthInformation healthInfo; 
         public final ArrayList<String> list;
+        public final int pastStressLevel;
         
         public recommendEngineGreet(ActorRef<StressManagementController.Command> replyTo,
-        StressManagementController.HealthInformation info, ArrayList<String> list) {
+        StressManagementController.HealthInformation info, ArrayList<String> list, int level) {
           this.replyTo = replyTo;
           this.healthInfo = info;
           this.list = list;
+          this.pastStressLevel = level;
         }
       }//end of class recommendEngineGreet
 
@@ -61,6 +62,7 @@ public class StressRecommendationEngine extends AbstractBehavior<StressRecommend
       .onMessage(SleepReporterToRecommendation.class, this::onSleepReporterResponse)      
       .onMessage(LocationReporterToRecommendation.class, this::onLocationReporterResponse)
       .onMessage(ScheduleReporterToRecommendation.class, this::onScheduleReporterResponse)
+      .onSignal(PostStop.class, signal -> onPostStop())
       .build();
     }
   
@@ -86,6 +88,11 @@ public class StressRecommendationEngine extends AbstractBehavior<StressRecommend
       getContext().getLog().info("Got response from Schedule Reporter: {}", response.message); 
       return this;
     }
+
+    private StressRecommendationEngine onPostStop() {
+      getContext().getLog().info("Recommendation Engine stopped");
+      return this;
+  }
 
     public static class SleepReporterToRecommendation implements Command {
       public final int sleepHours; //get sleep hours from sleep reporter

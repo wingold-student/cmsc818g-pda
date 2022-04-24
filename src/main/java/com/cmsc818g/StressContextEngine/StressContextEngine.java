@@ -130,9 +130,7 @@ public class StressContextEngine extends AbstractBehavior<StressContextEngine.Co
         context.getSystem().receptionist().tell(Receptionist.register(locationKey, sleepReporter));
         reporters.put("Location", locationReporter);
         context.watch(locationReporter);
-
 */
-
         this.statusAdapter = context.messageAdapter(Reporter.StatusOfRead.class, DatabaseReadStatus::new);
     }
   
@@ -182,7 +180,6 @@ public class StressContextEngine extends AbstractBehavior<StressContextEngine.Co
         getContext().getLog().error(message + " : " + msg.status.message);
         getContext().getSelf().tell(new StopPeriodicDatabaseReading());
       }
-
       return this;
     }
 
@@ -199,9 +196,8 @@ public class StressContextEngine extends AbstractBehavior<StressContextEngine.Co
       return this;
     }
   
-    private Behavior<Command> onEngineResponse(contextEngineGreet message) { //when receive message
-        StressManagementController.HealthInformation personalData = new StressManagementController.HealthInformation();
-        message.replyTo.tell(new StressManagementController.ContextEngineToController("healthData", personalData));       
+    private Behavior<Command> onEngineResponse(contextEngineGreet message) { //controller 
+        message.replyTo.tell(new StressManagementController.ContextEngineToController("contextEngine"));       
       return this;
     }
 }
