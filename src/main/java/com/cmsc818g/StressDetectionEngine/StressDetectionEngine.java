@@ -3,6 +3,7 @@ package com.cmsc818g.StressDetectionEngine;
 import java.util.ArrayList;
 
 import com.cmsc818g.StressManagementController;
+import com.cmsc818g.StressContextEngine.Reporters.SleepReporter;
 
 import akka.actor.typed.ActorRef;
 import akka.actor.typed.Behavior;
@@ -37,7 +38,12 @@ public class StressDetectionEngine extends AbstractBehavior<StressDetectionEngin
   
     @Override
     public Receive<Command> createReceive() {
-      return newReceiveBuilder().onMessage(detectionEngineGreet.class, this::onEngineResponse).build();
+      return newReceiveBuilder()
+      .onMessage(detectionEngineGreet.class, this::onEngineResponse)
+      .onMessage(SleepReporterToDetection.class, this::onSleepReporterResponse)      
+      .onMessage(LocationReporterToDetection.class, this::onLocationReporterResponse)
+      .onMessage(ScheduleReporterToDetection.class, this::onScheduleReporterResponse)
+      .build();
     }
   
     private Behavior<Command> onEngineResponse(detectionEngineGreet message) { //when receive message
@@ -46,5 +52,44 @@ public class StressDetectionEngine extends AbstractBehavior<StressDetectionEngin
         int level = 100 ; //stress level
         message.replyTo.tell(new StressManagementController.DetectionEngineToController("stressLevel", level));       
       return this;
+    }
+
+    private Behavior<Command> onSleepReporterResponse(SleepReporterToDetection response) {
+      getContext().getLog().info("Detector Got response from Sleep Reporter: {}", response.sleepHours); 
+      return this;
+    }
+
+    private Behavior<Command> onLocationReporterResponse(LocationReporterToDetection response) {
+      getContext().getLog().info("Detector Got response from Location Reporter: {}", response.location); 
+      return this;
+    }
+
+    private Behavior<Command> onScheduleReporterResponse(ScheduleReporterToDetection response) {
+      getContext().getLog().info("Detector Got response from Schedule Reporter: {}", response.message); 
+      return this;
+    }
+
+
+    public static class SleepReporterToDetection implements Command {
+      public final int sleepHours; //get sleep hours from sleep reporter
+
+      public SleepReporterToDetection(int sleepHours) {
+        this.sleepHours = sleepHours;
+      }
+    }
+
+    public static class LocationReporterToDetection implements Command {
+      public final String location; //get location from location reporter
+      public LocationReporterToDetection(String location) {
+        this.location = location;
+      }
+    }
+
+    public static class ScheduleReporterToDetection implements Command {
+      public final String message; //get schedule from schedule reporter
+
+      public ScheduleReporterToDetection(String message) {
+        this.message = message;
+      }
     }
 }

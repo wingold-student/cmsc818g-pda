@@ -3,6 +3,7 @@ package com.cmsc818g.StressContextEngine.Reporters;
 import java.util.Optional;
 
 import com.cmsc818g.StressRecommendationEngine.StressRecommendationEngine;
+import com.cmsc818g.StressDetectionEngine.StressDetectionEngine;
 
 import akka.actor.typed.ActorRef;
 import akka.actor.typed.Behavior;
@@ -30,6 +31,16 @@ public class SleepReporter extends AbstractBehavior<SleepReporter.Command>{
         }
     }
 
+    public static final class AskSleepHoursByDetection implements Command {
+        private ActorRef<StressDetectionEngine.SleepReporterToDetection> replyTo;
+        
+
+        public AskSleepHoursByDetection(ActorRef<StressDetectionEngine.SleepReporterToDetection> replyTo) {
+            this.replyTo = replyTo;
+            
+        }
+    }
+
     private final ActorContext<SleepReporter.Command> context;
     private final String reporterId;
     private final String groupId;
@@ -48,11 +59,19 @@ public class SleepReporter extends AbstractBehavior<SleepReporter.Command>{
     public Receive<SleepReporter.Command> createReceive() {
         return newReceiveBuilder()
             .onMessage(AskSleepHours.class, this::onAskSleepHours)
+            .onMessage(AskSleepHoursByDetection.class, this::onAskSleepHoursByDetection)
             .build();
     }
 
     private Behavior<SleepReporter.Command> onAskSleepHours(AskSleepHours msg) {
         msg.replyTo.tell(new StressRecommendationEngine.SleepReporterToRecommendation(12)); //example sleep hours:12
+        return this;
+    }
+
+    private Behavior<SleepReporter.Command> onAskSleepHoursByDetection(AskSleepHoursByDetection msg) {
+        // same class as created for recommender above
+        // Just referencing different message class and replying to detector
+        msg.replyTo.tell(new StressDetectionEngine.SleepReporterToDetection(12)); //example sleep hours:12
         return this;
     }
 
