@@ -1,8 +1,5 @@
 package com.cmsc818g;
-import java.sql.*;
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.FileReader;
+
 import java.io.IOException;
 import akka.actor.typed.ActorSystem;
 /**
@@ -14,8 +11,7 @@ import akka.actor.typed.ActorSystem;
  */
 public class App 
 {
-    public static void main( String[] args )
-    {
+    public static void main( String[] args )  {
         final ActorSystem<StressManagementController.Command> system = ActorSystem.create(StressManagementController.create(), "pda-system");
 
         try {
@@ -23,9 +19,9 @@ public class App
         } catch (IOException e) {
             e.printStackTrace();
         }
-        system.terminate();
 
-        }
+       system.terminate();
+     }
    
         /*
 

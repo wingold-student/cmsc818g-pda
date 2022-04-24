@@ -78,12 +78,6 @@ public class StressContextEngine extends AbstractBehavior<StressContextEngine.Co
         )
         .onFailure(ClassNotFoundException.class, SupervisorStrategy.stop());
     }
-/*
-    public static Behavior<Command> create(ActorRef<StressManagementController.Command> controller) {
-      return Behaviors.setup(context -> new StressContextEngine(context, controller));
-    }
-*/
-
     private final TimerScheduler<Command> timers;
     private final ActorRef<Reporter.StatusOfRead> statusAdapter;
 
@@ -118,6 +112,26 @@ public class StressContextEngine extends AbstractBehavior<StressContextEngine.Co
         context.getSystem().receptionist().tell(Receptionist.register(bpKey, bpReporter));
         reporters.put("BloodPressure", bpReporter);
         context.watch(bpReporter);
+/*
+        ActorRef<Reporter.Command> heartReporter = context.spawn(BloodPressureReporter.create(databaseURI, tableName), "HeartRate");
+        ServiceKey<Reporter.Command> hrKey = ServiceKey.create(Reporter.Command.class, "HeartRate");
+        context.getSystem().receptionist().tell(Receptionist.register(hrKey, heartReporter));
+        reporters.put("HeartRate", heartReporter);
+        context.watch(heartReporter);
+
+        ActorRef<Reporter.Command> sleepReporter = context.spawn(SleepReporter.create(databaseURI, tableName), "SleepHours");
+        ServiceKey<Reporter.Command> sleepKey = ServiceKey.create(Reporter.Command.class, "SleepHours");
+        context.getSystem().receptionist().tell(Receptionist.register(sleepKey, sleepReporter));
+        reporters.put("BloodPressure", sleepReporter);
+        context.watch(sleepReporter);
+
+        ActorRef<Reporter.Command> locationReporter = context.spawn(LocationReporter.create(databaseURI, tableName), "Location");
+        ServiceKey<Reporter.Command> locationKey = ServiceKey.create(Reporter.Command.class, "Location");
+        context.getSystem().receptionist().tell(Receptionist.register(locationKey, sleepReporter));
+        reporters.put("Location", locationReporter);
+        context.watch(locationReporter);
+
+*/
 
         this.statusAdapter = context.messageAdapter(Reporter.StatusOfRead.class, DatabaseReadStatus::new);
     }
@@ -181,15 +195,12 @@ public class StressContextEngine extends AbstractBehavior<StressContextEngine.Co
     }
 
     private StressContextEngine onPostStop() {
-      // TODO: Shutdown actors?
       getContext().getLog().info("Context engine shutting down");
       return this;
     }
   
     private Behavior<Command> onEngineResponse(contextEngineGreet message) { //when receive message
-        //get information of connected entities
         StressManagementController.HealthInformation personalData = new StressManagementController.HealthInformation();
-   
         message.replyTo.tell(new StressManagementController.ContextEngineToController("healthData", personalData));       
       return this;
     }

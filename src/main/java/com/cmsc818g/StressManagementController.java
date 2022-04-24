@@ -10,6 +10,7 @@ import com.cmsc818g.StressUIManager.StressUIManager;
 
 import akka.actor.typed.ActorRef;
 import akka.actor.typed.Behavior;
+import akka.actor.typed.Terminated;
 import akka.actor.typed.javadsl.AbstractBehavior;
 import akka.actor.typed.javadsl.ActorContext;
 import akka.actor.typed.javadsl.Behaviors;
@@ -18,6 +19,7 @@ import akka.actor.typed.javadsl.Receive;
 public class StressManagementController extends AbstractBehavior<StressManagementController.Command>
 {
     public static ArrayList<String> entityList = new ArrayList<String>();
+    //public final ActorRef<StressEntityManager.Command> child_EntityManager;
     public final ActorRef<StressContextEngine.Command> child_ContextEngine;
     public final ActorRef<StressDetectionEngine.Command> child_DetectionEngine;
     public final ActorRef<StressRecommendationEngine.Command> child_RecommendEngine;
@@ -41,20 +43,27 @@ public class StressManagementController extends AbstractBehavior<StressManagemen
         // TODO: THESE ARE TEMPORARY
         String databaseURI = "jdbc:sqlite:src/main/resources/DemoScenario.db";
         String tableName = "ScenarioForDemo";
+        //child_EntityManager = context.spawn(StressEntityManager.create(), "StressEntityManager");
+        //context.watch(child_EntityManager);
+        //child_EntityManager.tell(new StressEntityManager.entityManagerGreet(getContext().getSelf()));
 
         child_ContextEngine = context.spawn(StressContextEngine.create(databaseURI, tableName), "StressContextEngine");
+        context.watch(child_ContextEngine);
         child_ContextEngine.tell(new StressContextEngine.contextEngineGreet(getContext().getSelf(), PersonalHealthInfo, entityList));
 
         child_DetectionEngine = context.spawn(StressDetectionEngine.create(), "StressDetectionEngine");
+        context.watch(child_DetectionEngine);
         child_DetectionEngine.tell(new StressDetectionEngine.detectionEngineGreet(getContext().getSelf(), PersonalHealthInfo, entityList));
 
         child_RecommendEngine = context.spawn(StressRecommendationEngine.create(), "StressRecommendEngine");
+        context.watch(child_RecommendEngine);
         child_RecommendEngine.tell(new StressRecommendationEngine.recommendEngineGreet(getContext().getSelf(), PersonalHealthInfo, entityList));
 
         child_UIManager = context.spawn(StressUIManager.create(), "StressUIManager");
         // Should I add UI Manager tell?
-  
+        context.watch(child_UIManager);
         child_ContextEngine.tell(new StressContextEngine.StartPeriodicDatabaseReading(Duration.ofSeconds(1L)));
+
     }
 
     public static void controllerProcess() {
@@ -186,6 +195,7 @@ public class StressManagementController extends AbstractBehavior<StressManagemen
         .onMessage(DetectionEngineToController.class, this::onDetectionEngineResponse)
         .onMessage(RecommendEngineToController.class, this::onRecommendEnginedResponse)
         .onMessage(UIManagerToController.class, this::onUIManagerResponse)
+        .onSignal(Terminated.class , sig -> Behaviors.stopped())
         .build();
         
     } //end of createReceive
