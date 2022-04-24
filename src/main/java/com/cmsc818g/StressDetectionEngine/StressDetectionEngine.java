@@ -54,13 +54,16 @@ public class StressDetectionEngine extends AbstractBehavior<StressDetectionEngin
 
         /**
          * This is an example, do not actually spawn the blood pressure reporter here.
+         * 
+         * Comment out if you want to run without errors
          */
-        ActorRef<Reporter.Command> bpReporter = context.spawn(BloodPressureReporter.create("", ""), "FOR EXAMPLE ONLY");
+        ActorRef<Reporter.Command> bpReporter = context.spawn(BloodPressureReporter.create("", ""), "FOR_EXAMPLE_ONLY");
 
         /**
          * Nor should you ask it within the constructor. This is just for ease.
          * 
          * This is the format of 'asking' the BloodPressureReporter for the last reading.
+         * Comment out if you want to run without errors
          */
         context.ask(
           BloodPressureReporter.BloodPressureReading.class, // What type of message am I expecting back?
