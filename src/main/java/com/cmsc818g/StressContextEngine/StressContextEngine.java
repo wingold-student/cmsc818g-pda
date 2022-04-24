@@ -14,13 +14,12 @@ import akka.actor.ActorPath;
 import akka.actor.typed.ActorRef;
 import akka.actor.typed.Behavior;
 import akka.actor.typed.ChildFailed;
+import akka.actor.typed.PostStop;
 import akka.actor.typed.SupervisorStrategy;
 import akka.actor.typed.javadsl.AbstractBehavior;
 import akka.actor.typed.javadsl.ActorContext;
 import akka.actor.typed.javadsl.Behaviors;
-import akka.actor.typed.javadsl.GroupRouter;
 import akka.actor.typed.javadsl.Receive;
-import akka.actor.typed.javadsl.Routers;
 import akka.actor.typed.javadsl.TimerScheduler;
 import akka.actor.typed.receptionist.Receptionist;
 import akka.actor.typed.receptionist.ServiceKey;
@@ -85,9 +84,6 @@ public class StressContextEngine extends AbstractBehavior<StressContextEngine.Co
     }
 */
 
-    private final ServiceKey<Reporter.Command> reporterServiceKey;
-    private final GroupRouter<Reporter.Command> reporterGroup;
-    private final ActorRef<Reporter.Command> router;
     private final TimerScheduler<Command> timers;
     private final ActorRef<Reporter.StatusOfRead> statusAdapter;
 
@@ -104,27 +100,26 @@ public class StressContextEngine extends AbstractBehavior<StressContextEngine.Co
         this.currentRowNumber = 1;
         this.reporters = new HashMap<>();
 
-        reporterServiceKey = ServiceKey.create(Reporter.Command.class, "context-reporter");
-
         ActorRef<Reporter.Command> schedulerReporter = context.spawn(SchedulerReporter.create("demo", databaseURI, tableName), "Scheduler");
-        context.getSystem().receptionist().tell(Receptionist.register(reporterServiceKey, schedulerReporter));
+        ServiceKey<Reporter.Command> schedulerKey = ServiceKey.create(Reporter.Command.class, "Scheduler");
+        context.getSystem().receptionist().tell(Receptionist.register(schedulerKey, schedulerReporter));
         reporters.put("Scheduler", schedulerReporter);
-
-        ActorRef<Reporter.Command> busynessReporter = context.spawn(BusynessReporter.create(schedulerReporter), "Busyness");
-        context.getSystem().receptionist().tell(Receptionist.register(reporterServiceKey, busynessReporter));
-        reporters.put("Busyness", schedulerReporter);
-        
-        ActorRef<Reporter.Command> bpReporter = context.spawn(BloodPressureReporter.create(databaseURI, tableName), "BloodPressure");
-        context.getSystem().receptionist().tell(Receptionist.register(reporterServiceKey, bpReporter));
-        reporters.put("BloodPressure", bpReporter);
-
-        reporterGroup = Routers.group(reporterServiceKey);
-        router = context.spawn(reporterGroup, "reporter-group");
-
         context.watch(schedulerReporter);
 
-        this.statusAdapter = context.messageAdapter(Reporter.StatusOfRead.class, DatabaseReadStatus::new);
+        ActorRef<Reporter.Command> busynessReporter = context.spawn(BusynessReporter.create(schedulerReporter), "Busyness");
+        ServiceKey<Reporter.Command> busyKey = ServiceKey.create(Reporter.Command.class, "Busyness");
+        context.getSystem().receptionist().tell(Receptionist.register(busyKey, busynessReporter));
+        reporters.put("Busyness", busynessReporter);
+        context.watch(busynessReporter);
+        
 
+        ActorRef<Reporter.Command> bpReporter = context.spawn(BloodPressureReporter.create(databaseURI, tableName), "BloodPressure");
+        ServiceKey<Reporter.Command> bpKey = ServiceKey.create(Reporter.Command.class, "BloodPressure");
+        context.getSystem().receptionist().tell(Receptionist.register(bpKey, bpReporter));
+        reporters.put("BloodPressure", bpReporter);
+        context.watch(bpReporter);
+
+        this.statusAdapter = context.messageAdapter(Reporter.StatusOfRead.class, DatabaseReadStatus::new);
     }
   
     @Override
@@ -136,6 +131,7 @@ public class StressContextEngine extends AbstractBehavior<StressContextEngine.Co
         .onMessage(TellAllReportersToRead.class, this::onTellAllReportersToRead)
         .onMessage(DatabaseReadStatus.class, this::onDatabaseReadStatus)
         .onSignal(ChildFailed.class, signal -> onChildFailed(signal))
+        .onSignal(PostStop.class, signal -> onPostStop())
         .build();
     }
 
@@ -155,7 +151,9 @@ public class StressContextEngine extends AbstractBehavior<StressContextEngine.Co
     private Behavior<Command> onTellAllReportersToRead(TellAllReportersToRead msg) {
       final int toReadRow = this.currentRowNumber; // Copy so it doesn't change in the message
 
-      this.router.tell(new Reporter.ReadRowOfData(toReadRow, this.statusAdapter));
+      this.reporters.forEach((name, reporter) -> {
+        reporter.tell(new Reporter.ReadRowOfData(toReadRow, this.statusAdapter));
+      });
 
       this.currentRowNumber++;
       return this;
@@ -179,6 +177,12 @@ public class StressContextEngine extends AbstractBehavior<StressContextEngine.Co
       String errorMsg = "Child " + childPath + " failed";
       getContext().getLog().error(errorMsg, signal.getCause());
 
+      return this;
+    }
+
+    private StressContextEngine onPostStop() {
+      // TODO: Shutdown actors?
+      getContext().getLog().info("Context engine shutting down");
       return this;
     }
   
