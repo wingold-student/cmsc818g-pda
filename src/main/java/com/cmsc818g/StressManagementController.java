@@ -46,7 +46,7 @@ public class StressManagementController extends AbstractBehavior<StressManagemen
         child_EntityManager = context.spawn(StressEntityManager.create(databaseURI, tableName), "StressEntityManager");
         child_EntityManager.tell(new StressEntityManager.entityManagerGreet(getContext().getSelf()));
 
-        child_ContextEngine = context.spawn(StressContextEngine.create(), "StressContextEngine");
+        child_ContextEngine = context.spawn(StressContextEngine.create(databaseURI, tableName), "StressContextEngine");
         child_ContextEngine.tell(new StressContextEngine.contextEngineGreet(getContext().getSelf(), PersonalHealthInfo, entityList));
 
         child_DetectionEngine = context.spawn(StressDetectionEngine.create(), "StressDetectionEngine");
@@ -58,7 +58,7 @@ public class StressManagementController extends AbstractBehavior<StressManagemen
         child_UIManager = context.spawn(StressUIManager.create(), "StressUIManager");
         // Should I add UI Manager tell?
   
-        child_EntityManager.tell(new StressEntityManager.StartPeriodicDatabaseReading(Duration.ofSeconds(1L)));
+        child_ContextEngine.tell(new StressContextEngine.StartPeriodicDatabaseReading(Duration.ofSeconds(1L)));
     }
 
     public static void controllerProcess() {
