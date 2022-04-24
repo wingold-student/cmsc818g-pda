@@ -1,26 +1,33 @@
 package com.cmsc818g.StressContextEngine.Reporters;
 
-import java.time.format.DateTimeFormatter;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.time.Duration;
-import java.time.LocalDateTime;
 import java.time.format.DateTimeParseException;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Optional;
 
 import com.cmsc818g.StressEntityManager.Entities.CalendarCommand;
 
+import org.slf4j.Logger;
+
+import akka.Done;
+import akka.actor.ActorPath;
 import akka.actor.typed.ActorRef;
 import akka.actor.typed.Behavior;
 import akka.actor.typed.PostStop;
+import akka.actor.typed.SupervisorStrategy;
 import akka.actor.typed.javadsl.AbstractBehavior;
 import akka.actor.typed.javadsl.ActorContext;
 import akka.actor.typed.javadsl.Behaviors;
 import akka.actor.typed.javadsl.Receive;
 import akka.http.javadsl.model.DateTime;
+import akka.pattern.StatusReply;
 
 // AbstractBehavior<What type of messages it will receive>
-public class SchedulerReporter extends AbstractBehavior<SchedulerReporter.Command> {
+public class SchedulerReporter extends AbstractBehavior<Reporter.Command> implements Reporter {
 
     /************************************* 
      * MESSAGES IT RECEIVES 
@@ -30,7 +37,16 @@ public class SchedulerReporter extends AbstractBehavior<SchedulerReporter.Comman
      * Since we will want more than a single type of message, we'll create an
      * empty interface that all necessary command messages can implement
      */
-    public interface Command {}
+    public interface Command extends Reporter.Command {}
+
+    // Likely the only one we'll use for the first demo
+    public static final class GetCurrentEvent implements Command {
+        final ActorRef<CurrentEventResponse> replyTo;
+
+        public GetCurrentEvent(ActorRef<CurrentEventResponse> replyTo) {
+            this.replyTo = replyTo;
+        }
+    }
 
     /**
      * This is just one type of command message we may receive. Another actor can
@@ -47,51 +63,24 @@ public class SchedulerReporter extends AbstractBehavior<SchedulerReporter.Comman
      */
     public static final class AskIsFreeAt implements Command {
         final long requestId;
-        final String dateTimeStr;
+        final DateTime time;
         final ActorRef<RespondIsFreeAt> replyTo;
 
-        public AskIsFreeAt(long requestId, String dateTimeStr, ActorRef<RespondIsFreeAt> replyTo) {
+        public AskIsFreeAt(long requestId, DateTime time, ActorRef<RespondIsFreeAt> replyTo) {
             this.requestId = requestId;
-            this.dateTimeStr = dateTimeStr;
+            this.time = time;
             this.replyTo = replyTo;
         }
     }
 
     /**
-     * This is what we will send back to the actor who asked us if the user
-     * was free at a certain date and time.
-     * 
-     * We used the requestId so the actor knows what this is an answer to if multiple
-     * queries were sent.
-     * 
-     * We return an Optional<Boolean> for true, false, empty. Where empty is if we had an
-     * issue parsing it. (Though this is just an example of how to handle it)
-     * 
-     * NOTE: All variables are final. Messages should be *immutable*
-     */
-    public static final class RespondIsFreeAt {
-        final long requestId;
-        final Optional<Boolean> value;
-
-        public RespondIsFreeAt(long requestId, Optional<Boolean> value) {
-            this.requestId = requestId;
-            this.value = value;
-        }
-    }
-
-
-    /**
      * A request to add an event to the user's schedule.
      */
     public static final class AddToSchedule implements Command {
-        final long requestId;
-        final String dateTimeStr;
-        final String event;
+        final CalendarEvent event;
         final ActorRef<ScheduleAddedTo> replyTo;
 
-        public AddToSchedule(long requestId, String dateTimeStr, String event, ActorRef<ScheduleAddedTo> replyTo) {
-            this.requestId = requestId;
-            this.dateTimeStr = dateTimeStr;
+        public AddToSchedule(CalendarEvent event, ActorRef<ScheduleAddedTo> replyTo) {
             this.event = event;           
             this.replyTo = replyTo;
         }
@@ -101,11 +90,9 @@ public class SchedulerReporter extends AbstractBehavior<SchedulerReporter.Comman
      * Reply back to AddToSchedule. Either it did, true, or it didn't, false.
      */
     public static final class ScheduleAddedTo {
-        final long requestId;
         final boolean value;
 
-        public ScheduleAddedTo(long requestId, boolean value) {
-            this.requestId = requestId;
+        public ScheduleAddedTo(boolean value) {
             this.value = value;
         }
     }
@@ -161,6 +148,37 @@ public class SchedulerReporter extends AbstractBehavior<SchedulerReporter.Comman
      *************************************/
     public interface Response {}
 
+    // Likely the only response we'll use in the first demo
+    public static final class CurrentEventResponse implements Response {
+        final public Optional<CalendarEvent> event;
+
+        public CurrentEventResponse(Optional<CalendarEvent> event) {
+            this.event = event;
+        }
+    }
+
+    /**
+     * This is what we will send back to the actor who asked us if the user
+     * was free at a certain date and time.
+     * 
+     * We used the requestId so the actor knows what this is an answer to if multiple
+     * queries were sent.
+     * 
+     * We return an Optional<Boolean> for true, false, empty. Where empty is if we had an
+     * issue parsing it. (Though this is just an example of how to handle it)
+     * 
+     * NOTE: All variables are final. Messages should be *immutable*
+     */
+    public static final class RespondIsFreeAt implements Response {
+        final long requestId;
+        final Optional<Boolean> value;
+
+        public RespondIsFreeAt(long requestId, Optional<Boolean> value) {
+            this.requestId = requestId;
+            this.value = value;
+        }
+    }
+
     public static final class ResponseEventsInRange implements Response {
         final HashMap<String, Object> events; // TODO: Update to actual EventObject when created
 
@@ -192,24 +210,35 @@ public class SchedulerReporter extends AbstractBehavior<SchedulerReporter.Comman
      * 
      * Behaviors define well, how an actor behaves. But their behavior can change in the middle
      * of execution. This is why we return it not only here, but after processing messages too.
+     * 
+     * Here we're watching for if a SQLException occurs, which will log it for us and simply resume.
+     * It resumes since it likely isn't a killer exception.
      */
-    public static Behavior<Command> create() {
-        return Behaviors.setup(context -> new SchedulerReporter(context));
+    public static Behavior<Reporter.Command> create(String calendarName, String calendarDBURI, String calendarTableName) {
+        // return Behaviors.setup(context -> new SchedulerReporter(context, calendarName, calendarDBURI, calendarTableName));
+        return Behaviors.<Reporter.Command>supervise(
+            Behaviors.setup(
+                context -> new SchedulerReporter(context, calendarName, calendarDBURI, calendarTableName)
+            )
+        ).onFailure(SQLException.class, SupervisorStrategy.resume());
     }
 
     // Just some instance variables
-    private Optional<String> curEvent;
-    private HashMap<String, ActorRef<CalendarCommand>> calendarEntities;
-    private ArrayList<ActorRef<Response>> newEventSubscribers; // TODO: Use Router later?
+    private Optional<CalendarEvent> curEvent;
+    private HashMap<String, CalendarData> calendars;
+    private final String calendarDemoName;
 
     /**
      * Constructor for this actor
      */
-    private SchedulerReporter(ActorContext<Command> context) {
+    private SchedulerReporter(ActorContext<Reporter.Command> context, String calendarName, String calendarDBURI, String calendarTableName) {
         super(context);
         this.curEvent = Optional.empty();
-        this.calendarEntities = new HashMap<>();
-        this.newEventSubscribers = new ArrayList<>();
+        calendars = new HashMap<>();
+
+        this.calendarDemoName = calendarName;
+        CalendarData originalCalendar = new CalendarData(calendarName, calendarDBURI, calendarTableName);
+        calendars.put(calendarName, originalCalendar);
 
         context.getLog().info("Scheduler Reporter");
     }
@@ -225,14 +254,9 @@ public class SchedulerReporter extends AbstractBehavior<SchedulerReporter.Comman
      * @return True if parsed correctly and no current event set, false if
      * curEvent is set, empty otherwise.
      */
-    private Optional<Boolean> IsFreeAt(String dateTimeStr) {
+    private Optional<Boolean> IsFreeAt(DateTime eventDateTime) {
         try {
-            getContext().getLog().info("Scheduler Reporter got date time str: {}", dateTimeStr);
-            LocalDateTime recvDateTime = LocalDateTime.parse(dateTimeStr);
-            DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("MM-dd-yyyy HH:mm:ss");
-            String recvDateTimeStr = recvDateTime.format(dateFormatter);
-
-            getContext().getLog().info("Scheduler Reporter created date time: {}", recvDateTimeStr);
+            getContext().getLog().info("Scheduler Reporter got date time str: {}", eventDateTime.toIsoDateTimeString());
 
             boolean isFree = this.curEvent.isEmpty();
             return Optional.of(isFree);
@@ -258,8 +282,10 @@ public class SchedulerReporter extends AbstractBehavior<SchedulerReporter.Comman
      * are other methods I don't know of yet too.
      */
     @Override
-    public Receive<Command> createReceive() {
+    public Receive<Reporter.Command> createReceive() {
         return newReceiveBuilder()
+            .onMessage(Reporter.ReadRowOfData.class, this::onReadRowOfData)
+            .onMessage(GetCurrentEvent.class, this::onGetCurrentEvent)
             .onMessage(AskIsFreeAt.class, this::onAskIsFreeAt)
             .onMessage(AddToSchedule.class, this::onAddToSchedule)
             .onMessage(AddCalendar.class, this::onAddCalendar)
@@ -269,6 +295,57 @@ public class SchedulerReporter extends AbstractBehavior<SchedulerReporter.Comman
     }
 
 
+    private Behavior<Reporter.Command> onReadRowOfData(ReadRowOfData msg) throws ClassNotFoundException, SQLException {
+        CalendarData calendar = calendars.get(this.calendarDemoName);
+        Logger logger = getContext().getLog();
+        ActorPath myPath = getContext().getSelf().path();
+
+        Connection conn = Reporter.connectToDB(calendar.databaseURI, logger, msg.replyTo, myPath);
+
+        try {
+            String query = "SELECT id, DateTime, Schedule FROM " + calendar.tableName + " WHERE id = ?";
+            PreparedStatement statement;
+            statement = conn.prepareStatement(query);
+            statement.setInt(1, msg.rowNumber);
+
+            ResultSet results = Reporter.queryDB(calendar.databaseURI, statement, logger, msg.replyTo, myPath);
+
+            if (results.next()) {
+                Optional<String> eventName = Optional.ofNullable(results.getString("Schedule"));
+                String dateTimeStr = results.getString("DateTime");
+                Optional<DateTime> eventTime = DateTime.fromIsoDateTimeString(dateTimeStr);
+
+                if (eventName.isPresent() && eventTime.isPresent()) {
+                    Duration tmpDuration = Duration.ofMinutes(30L); // TODO: TEMPORARY
+                    Optional.of(Duration.ofDays(1));
+                    CalendarEvent event = new CalendarEvent(eventName.get(), eventTime.get(), tmpDuration, "");
+                    this.curEvent = Optional.of(event);
+                }
+
+                results.close();
+                msg.replyTo.tell(new Reporter.StatusOfRead(true, "Succesfully read row " + msg.rowNumber, myPath));
+
+                
+            } else {
+                msg.replyTo.tell(new Reporter.StatusOfRead(false, "No results from row " + msg.rowNumber, myPath));
+            }
+            
+        conn.close();
+
+        } catch (SQLException e) {
+            String errorMsg = "Failed to prepare statement";
+            msg.replyTo.tell(new Reporter.StatusOfRead(false, errorMsg, myPath));
+            throw e;
+        }
+
+        return this;
+    }
+
+    private Behavior<Reporter.Command> onGetCurrentEvent(GetCurrentEvent msg) {
+        msg.replyTo.tell(new CurrentEventResponse(this.curEvent));
+        return this;
+    }
+
     /**
      * Set to be called when we receive a AskIsFreeAt message/command.
      * It will respond back to the actor who asked saying if the user is free or
@@ -277,8 +354,8 @@ public class SchedulerReporter extends AbstractBehavior<SchedulerReporter.Comman
      * @param msg The command which is asking if the user is free at a date and time
      * @return the behavior of this actor. It didn't change
      */
-    private Behavior<Command> onAskIsFreeAt(AskIsFreeAt msg) {
-        msg.replyTo.tell(new RespondIsFreeAt(msg.requestId, this.IsFreeAt(msg.dateTimeStr)));
+    private Behavior<Reporter.Command> onAskIsFreeAt(AskIsFreeAt msg) {
+        msg.replyTo.tell(new RespondIsFreeAt(msg.requestId, this.IsFreeAt(msg.time)));
         return this;
     }
 
@@ -288,24 +365,24 @@ public class SchedulerReporter extends AbstractBehavior<SchedulerReporter.Comman
      * 
      * (Meaning this will fail upon a second AddToSchedule message)
      */
-    private Behavior<Command> onAddToSchedule(AddToSchedule msg) {
-        Optional<Boolean> isFree = this.IsFreeAt(msg.dateTimeStr);
+    private Behavior<Reporter.Command> onAddToSchedule(AddToSchedule msg) {
+        Optional<Boolean> isFree = this.IsFreeAt(msg.event.time);
         boolean addedEvent = !isFree.isEmpty() && isFree.get();
 
         if (addedEvent) {
             this.curEvent = Optional.of(msg.event);
         }
 
-        msg.replyTo.tell(new ScheduleAddedTo(msg.requestId, addedEvent));
+        msg.replyTo.tell(new ScheduleAddedTo(addedEvent));
         return this;
     }
 
-    private Behavior<Command> onAddCalendar(AddCalendar msg) {
-        calendarEntities.put(msg.calendarName, msg.calendarEntity);
+    private Behavior<Reporter.Command> onAddCalendar(AddCalendar msg) {
+        // calendarEntities.put(msg.calendarName, msg.calendarEntity);
         return this;
     }
 
-    private Behavior<Command> onGetEventsInRange(GetEventsInRange msg) {
+    private Behavior<Reporter.Command> onGetEventsInRange(GetEventsInRange msg) {
         msg.replyTo.tell(new ResponseEventsInRange(new HashMap<String, Object>()));
         return this;
     }
@@ -316,5 +393,33 @@ public class SchedulerReporter extends AbstractBehavior<SchedulerReporter.Comman
     private SchedulerReporter onPostStop() {
         getContext().getLog().info("Scheduler reporter stopped");
         return this;
+    }
+
+    /************************************* 
+     * HELPER CLASSES
+     *************************************/
+    private class CalendarData {
+        final String name;
+        final String databaseURI;
+        final String tableName;
+
+        public CalendarData(String name, String databaseURI, String tableName) {
+            this.name = name;
+            this.databaseURI = databaseURI;
+            this.tableName = tableName;
+        }
+    }
+    public class CalendarEvent {
+        String eventName;
+        DateTime time;
+        Duration length;
+        String calendarType;
+
+        public CalendarEvent(String eventName, DateTime time, Duration length, String calendarType) {
+            this.eventName = eventName;
+            this.time = time;
+            this.length = length;
+            this.calendarType = calendarType;
+        }
     }
 }
