@@ -1,8 +1,12 @@
 package com.cmsc818g.StressDetectionEngine;
 
+import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Optional;
 
 import com.cmsc818g.StressManagementController;
+import com.cmsc818g.StressContextEngine.Reporters.BloodPressureReporter;
+import com.cmsc818g.StressContextEngine.Reporters.Reporter;
 import com.cmsc818g.StressContextEngine.Reporters.SleepReporter;
 
 import akka.actor.typed.ActorRef;
@@ -26,14 +30,54 @@ public class StressDetectionEngine extends AbstractBehavior<StressDetectionEngin
           this.list = list;
         }
       }//end of class detectionEngineGreet
+
+      /**
+       * A wrapper class around the `BloodPressureReading` so you can still 'receive' it through the ask.
+       * Since the `StressDetectionEngine` cannot directly receive a `BloodPressureReading`.
+       */
+      public static final class AdaptedBloodPressure implements Command {
+        final BloodPressureReporter.BloodPressureReading response;
+
+        public AdaptedBloodPressure(BloodPressureReporter.BloodPressureReading response) {
+          this.response = response;
+        }
+      }
  
     public static Behavior<Command> create() {
         return Behaviors.setup(context -> new StressDetectionEngine(context));
     }
 
+    ActorRef<BloodPressureReporter.Response> bpAdapter;
     public StressDetectionEngine(ActorContext<Command> context) {
         super(context);
-        getContext().getLog().info("context engine actor created");
+        context.getLog().info("context engine actor created");
+
+        /**
+         * This is an example, do not actually spawn the blood pressure reporter here.
+         */
+        ActorRef<Reporter.Command> bpReporter = context.spawn(BloodPressureReporter.create("", ""), "FOR EXAMPLE ONLY");
+
+        /**
+         * Nor should you ask it within the constructor. This is just for ease.
+         * 
+         * This is the format of 'asking' the BloodPressureReporter for the last reading.
+         */
+        context.ask(
+          BloodPressureReporter.BloodPressureReading.class, // What type of message am I expecting back?
+          bpReporter, // Who am I asking?
+          Duration.ofSeconds(3L), // How long do I wait before throwing in the towel
+          (ActorRef<BloodPressureReporter.BloodPressureReading> ref) -> new BloodPressureReporter.ReadBloodPressure(ref), // Sending the request with the appropriate ActorRef
+          /**
+           * This is a callback of sorts, which will be run when/if you get a response.
+           * 
+           * Response will == null if no response. throwable will have an exception if something bad
+           * happened when asking it
+           */
+          (response, throwable) -> {
+            // Annoyingly, you kinda have to wrap the response into your (StressDetectorEngine) message protocol
+            return new AdaptedBloodPressure(response);
+          }
+        );
     }
   
     @Override
@@ -43,6 +87,7 @@ public class StressDetectionEngine extends AbstractBehavior<StressDetectionEngin
       .onMessage(SleepReporterToDetection.class, this::onSleepReporterResponse)      
       .onMessage(LocationReporterToDetection.class, this::onLocationReporterResponse)
       .onMessage(ScheduleReporterToDetection.class, this::onScheduleReporterResponse)
+      .onMessage(AdaptedBloodPressure.class, this::onAdaptedBloodPressure)
       .build();
     }
   
@@ -66,6 +111,23 @@ public class StressDetectionEngine extends AbstractBehavior<StressDetectionEngin
 
     private Behavior<Command> onScheduleReporterResponse(ScheduleReporterToDetection response) {
       getContext().getLog().info("Detector Got response from Schedule Reporter: {}", response.message); 
+      return this;
+    }
+
+    /**
+     * This is just an example of how you might access the data from the reading
+     * @param wrapped
+     * @return
+     */
+    private Behavior<Command> onAdaptedBloodPressure(AdaptedBloodPressure wrapped) {
+
+      if (wrapped.response == null) {
+        getContext().getLog().error("Failed to get blood pressure reading");
+      } else {
+        BloodPressureReporter.BloodPressureReading response = wrapped.response;
+        Optional<BloodPressureReporter.BloodPressure> bp = response.value;
+      }
+
       return this;
     }
 
