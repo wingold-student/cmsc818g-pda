@@ -18,7 +18,6 @@ import akka.actor.typed.javadsl.Receive;
 public class StressManagementController extends AbstractBehavior<StressManagementController.Command>
 {
     public static ArrayList<String> entityList = new ArrayList<String>();
-    public final ActorRef<StressEntityManager.Command> child_EntityManager;
     public final ActorRef<StressContextEngine.Command> child_ContextEngine;
     public final ActorRef<StressDetectionEngine.Command> child_DetectionEngine;
     public final ActorRef<StressRecommendationEngine.Command> child_RecommendEngine;
@@ -42,9 +41,6 @@ public class StressManagementController extends AbstractBehavior<StressManagemen
         // TODO: THESE ARE TEMPORARY
         String databaseURI = "jdbc:sqlite:src/main/resources/DemoScenario.db";
         String tableName = "ScenarioForDemo";
-
-        child_EntityManager = context.spawn(StressEntityManager.create(databaseURI, tableName), "StressEntityManager");
-        child_EntityManager.tell(new StressEntityManager.entityManagerGreet(getContext().getSelf()));
 
         child_ContextEngine = context.spawn(StressContextEngine.create(databaseURI, tableName), "StressContextEngine");
         child_ContextEngine.tell(new StressContextEngine.contextEngineGreet(getContext().getSelf(), PersonalHealthInfo, entityList));
