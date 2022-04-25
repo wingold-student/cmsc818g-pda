@@ -31,12 +31,9 @@ public class StressContextEngine extends AbstractBehavior<StressContextEngine.Co
     public static class contextEngineGreet implements Command {
         public final ActorRef<StressManagementController.Command> replyTo;
         public final ArrayList<String> list;
-        public final StressManagementController.HealthInformation healthInfo; 
         
-        public contextEngineGreet(ActorRef<StressManagementController.Command> ref,
-                      StressManagementController.HealthInformation info, ArrayList<String> list) {
+        public contextEngineGreet(ActorRef<StressManagementController.Command> ref, ArrayList<String> list) {
           this.replyTo = ref;
-          this.healthInfo = info;
           this.list = list;
         }
       }//end of class contextEngineGreet

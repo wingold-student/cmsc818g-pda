@@ -20,7 +20,6 @@ Reporters to send msg to:
     Schedule Reporter
     Media Player(?)
 Fetch recommendation from Policy DB
-
 */
 
 public class StressRecommendationEngine extends AbstractBehavior<StressRecommendationEngine.Command> {
@@ -31,9 +30,11 @@ public class StressRecommendationEngine extends AbstractBehavior<StressRecommend
         public final StressManagementController.HealthInformation healthInfo; 
         public final ArrayList<String> list;
         public final int pastStressLevel;
+        String message ;
         
-        public recommendEngineGreet(ActorRef<StressManagementController.Command> replyTo,
+        public recommendEngineGreet(String message, ActorRef<StressManagementController.Command> replyTo,
         StressManagementController.HealthInformation info, ArrayList<String> list, int level) {
+          this.message = message;
           this.replyTo = replyTo;
           this.healthInfo = info;
           this.list = list;
@@ -50,8 +51,6 @@ public class StressRecommendationEngine extends AbstractBehavior<StressRecommend
         getContext().getLog().info("Recommendation Engine actor created"); 
     }
   
-
-
     /*
     * receiving responses from reporters
     */
@@ -66,11 +65,12 @@ public class StressRecommendationEngine extends AbstractBehavior<StressRecommend
       .build();
     }
   
-    private Behavior<Command> onEngineResponse(recommendEngineGreet message) { //when receive message
-        getContext().getLog().info("Get entity lists and send msg back");
-        //recommend treatment     
-        message.replyTo.tell(new StressManagementController.RecommendEngineToController("recommendation")); 
-        //this.tell(new SleepReporter.AskSleepHours(getContext().getSelf()))
+    private Behavior<Command> onEngineResponse(recommendEngineGreet response) { //when receive message
+      if(response.message == "recommend"){
+          //recommend treatment     
+          response.replyTo.tell(new StressManagementController.RecommendEngineToController("recommendation")); 
+          //this.tell(new SleepReporter.AskSleepHours(getContext().getSelf()))
+      }
       return this;
     }
 

@@ -28,16 +28,20 @@ Send to controller:
 public class StressDetectionEngine extends AbstractBehavior<StressDetectionEngine.Command> {
 
     public interface Command {}
+
+    public static StressManagementController.HealthInformation healthData;
     public static class detectionEngineGreet implements Command {
         public final ActorRef<StressManagementController.Command> replyTo;
         public final ArrayList<String> list;
+        public String message; 
 
-        public detectionEngineGreet(ActorRef<StressManagementController.Command> ref,  ArrayList<String> list) {
+        public detectionEngineGreet(String message, ActorRef<StressManagementController.Command> ref,  ArrayList<String> list) {
+          this.message = message;
           this.replyTo = ref;
           this.list = list;
         }
       }//end of class detectionEngineGreet
-
+      
       /**
        * A wrapper class around the `BloodPressureReading` so you can still 'receive' it through the ask.
        * Since the `StressDetectionEngine` cannot directly receive a `BloodPressureReading`.
@@ -51,6 +55,7 @@ public class StressDetectionEngine extends AbstractBehavior<StressDetectionEngin
       }
  
     public static Behavior<Command> create() {
+        healthData = new StressManagementController.HealthInformation();
         return Behaviors.setup(context -> new StressDetectionEngine(context));
     }
 
@@ -102,14 +107,16 @@ public class StressDetectionEngine extends AbstractBehavior<StressDetectionEngin
       .build();
     }
   
-    private Behavior<Command> onEngineResponse(detectionEngineGreet message) { 
-        //get information of connected entities
-        StressManagementController.HealthInformation healthInfo = new StressManagementController.HealthInformation();
-        healthInfo.stressLevel = 100; //later detected stress level is set here
-        message.replyTo.tell(new StressManagementController.DetectionEngineToController("healthInfo", healthInfo));       
+    private Behavior<Command> onEngineResponse(detectionEngineGreet response) { 
+        //query reporters 
+      if(response.message == "detect"){
+        stressMeasurementProcess(); //stress detection + measurement process
+        getContext().getLog().info("Detection engine's stress level: "+  healthData.stressLevel); 
+        response.replyTo.tell(new StressManagementController.DetectionEngineToController("healthInfo", healthData));       
+      }
       return this;
     }
-
+    
     private Behavior<Command> onSleepReporterResponse(SleepReporterToDetection response) {
       getContext().getLog().info("Detector Got response from Sleep Reporter: {}", response.sleepHours); 
       return this;
@@ -130,24 +137,25 @@ public class StressDetectionEngine extends AbstractBehavior<StressDetectionEngin
       return this;
   }
 
-
     /**
      * This is just an example of how you might access the data from the reading
      * @param wrapped
      * @return
      */
     private Behavior<Command> onAdaptedBloodPressure(AdaptedBloodPressure wrapped) {
-
       if (wrapped.response == null) {
         getContext().getLog().error("Failed to get blood pressure reading");
       } else {
         BloodPressureReporter.BloodPressureReading response = wrapped.response;
         Optional<BloodPressureReporter.BloodPressure> bp = response.value;
-      }
-
+        if(bp.isPresent()){
+          healthData.diastolicBP = bp.get().getDiastolicBP();
+          healthData.systolicBP = bp.get().getSystolicBP();
+          getContext().getLog().info("DiastolicBP:" , healthData.diastolicBP, "SystolicBP:" , healthData.systolicBP);
+        }
+      }//end of else
       return this;
     }
-
 
     public static class SleepReporterToDetection implements Command {
       public final int sleepHours; //get sleep hours from sleep reporter
@@ -171,4 +179,37 @@ public class StressDetectionEngine extends AbstractBehavior<StressDetectionEngin
         this.message = message;
       }
     }
+
+    private Behavior<Command> stressMeasurementProcess(){ 
+      //stress detection process
+      
+      //Blood Pressure 
+      if((healthData.diastolicBP > 120 || healthData.systolicBP > 180)||
+              (healthData.diastolicBP > 120 && healthData.systolicBP > 180)) { //emergency detected 
+                healthData.stressLevel = 5;
+      }
+      else if((healthData.diastolicBP >= 90 && healthData.diastolicBP <= 120)||
+              (healthData.systolicBP >= 140 && healthData.systolicBP <= 180)) { // Hypertension stage 2
+                healthData.stressLevel = 4;
+      }
+      else if((healthData.diastolicBP >= 80 && healthData.diastolicBP < 90)||
+              (healthData.systolicBP >= 130&& healthData.systolicBP < 140)) { // Hypertension stage 1
+                healthData.stressLevel = 3;
+      }
+      else if(healthData.diastolicBP < 80 &&
+             (healthData.systolicBP >= 120 && healthData.systolicBP < 130)) {  // Elevated
+              healthData.stressLevel = 2;
+      }
+      else if(healthData.diastolicBP < 80 && healthData.systolicBP < 120) { // Normal 
+        healthData.stressLevel = 1;
+      }
+
+      //HeartRate
+
+
+      //sleep hours
+
+
+      return this;
+    }//end of stressMeasurementProcess
 }

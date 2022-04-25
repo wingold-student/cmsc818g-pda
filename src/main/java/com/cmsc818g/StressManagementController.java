@@ -21,14 +21,18 @@ public class StressManagementController extends AbstractBehavior<StressManagemen
 {
   public interface Command { }
     public static ArrayList<String> entityList = new ArrayList<String>();
+    public static HealthInformation PersonalHealthInfo = new HealthInformation();
+    public static int pastStressLevel = 0;
+    
     //public final ActorRef<StressEntityManager.Command> child_EntityManager;
     public final ActorRef<StressContextEngine.Command> child_ContextEngine;
     public final ActorRef<StressDetectionEngine.Command> child_DetectionEngine;
     public final ActorRef<StressRecommendationEngine.Command> child_RecommendEngine;
     public final ActorRef<StressUIManager.Command> child_UIManager;
     public static class HealthInformation {
-      public int bloodPressure = 98;
-      public int heartRate = 65;
+      public int systolicBP = 0;
+      public int diastolicBP = 0;
+      public int heartRate = 0;
       public int sleepHour = 0;
       public String location = null;
       public int busyness = 0;
@@ -36,8 +40,8 @@ public class StressManagementController extends AbstractBehavior<StressManagemen
       public String event = null;
       public String schedule = null;
     }
-    public HealthInformation PersonalHealthInfo = new HealthInformation();
-    public int pastStressLevel;
+  
+
     public StressManagementController(ActorContext<Command> context) {
         super(context); 
         getContext().getLog().info("Controller Actor created");
@@ -53,17 +57,20 @@ public class StressManagementController extends AbstractBehavior<StressManagemen
         */
         child_ContextEngine = context.spawn(StressContextEngine.create(databaseURI, tableName), "StressContextEngine");
         context.watch(child_ContextEngine);
-        child_ContextEngine.tell(new StressContextEngine.contextEngineGreet(getContext().getSelf(), PersonalHealthInfo, entityList));
+        child_ContextEngine.tell(new StressContextEngine.contextEngineGreet(getContext().getSelf(), entityList));
 
-        child_DetectionEngine = context.spawn(StressDetectionEngine.create(), "StressDetectionEngine");
-        context.watch(child_DetectionEngine);
+        //Read Entity Data
         child_ContextEngine.tell(new StressContextEngine.StartPeriodicDatabaseReading(Duration.ofSeconds(1L)));
+
+        child_DetectionEngine = context.spawn(StressDetectionEngine.create(), "spawn");
+        context.watch(child_DetectionEngine);
 
         child_RecommendEngine = context.spawn(StressRecommendationEngine.create(), "StressRecommendEngine");
         context.watch(child_RecommendEngine);
 
         child_UIManager = context.spawn(StressUIManager.create(), "StressUIManager");
         context.watch(child_UIManager);
+
     }
 
     public static void controllerProcess() {
@@ -103,13 +110,14 @@ public class StressManagementController extends AbstractBehavior<StressManagemen
     }//end of ControllerToContextEngine
     public static class DetectionEngineToController implements Command {
       public final String message;
-      public final HealthInformation info; //get stress level from detection engine
 
       public DetectionEngineToController(String message, HealthInformation info) {
         this.message = message;
-        this.info = info;
+        pastStressLevel = PersonalHealthInfo.stressLevel; 
+        PersonalHealthInfo = info;
       }
     }//end of DetectionEngineToController
+
     public static class RecommendEngineToController implements Command {
       // recommendation engine tells controller the treatment method
       // or it directly talks to the UI Manager
@@ -167,22 +175,20 @@ public class StressManagementController extends AbstractBehavior<StressManagemen
         getContext().getLog().info("Got response from Context Engine: {}", response.message);
         if(response.message != "contextEngine") return null;
         else
-          child_DetectionEngine.tell(new StressDetectionEngine.detectionEngineGreet(getContext().getSelf(), entityList));
+          child_DetectionEngine.tell(new StressDetectionEngine.detectionEngineGreet("detect",getContext().getSelf(), entityList));
         return this;
     }
 
     private Behavior<Command> onDetectionEngineResponse(DetectionEngineToController response) {
         getContext().getLog().info("Got response from Detection Engine: {}", response.message);
        if(response.message != "healthInfo") return null;
-
        //save past stress level and update with the new one
-       pastStressLevel = PersonalHealthInfo.stressLevel; 
-       PersonalHealthInfo = response.info;
-       getContext().getLog().info("Estimated Stress Level: ", PersonalHealthInfo.stressLevel);
-
+       getContext().getLog().info("Estimated Stress Level: "+ PersonalHealthInfo.stressLevel);
+       getContext().getLog().info("Past Stress Level: "+ pastStressLevel);
        //Recommendation process start
        if(PersonalHealthInfo.stressLevel != 100)
-          child_RecommendEngine.tell(new StressRecommendationEngine.recommendEngineGreet(getContext().getSelf(), PersonalHealthInfo, entityList, pastStressLevel));
+          child_RecommendEngine.tell(new StressRecommendationEngine.recommendEngineGreet("recommend", 
+                            getContext().getSelf(), PersonalHealthInfo, entityList, pastStressLevel));
         return this;
     }
 

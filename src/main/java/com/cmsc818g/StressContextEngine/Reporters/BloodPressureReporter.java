@@ -209,13 +209,19 @@ public class BloodPressureReporter extends AbstractBehavior<Reporter.Command> {
      *************************************/
     public class BloodPressure {
         final Optional<DateTime> readingTime;
-        final int upper;
-        final int lower;
+        final int systolic;
+        final int diastolic;
 
         public BloodPressure(Optional<DateTime> readingTime, String upper, String lower) {
             this.readingTime = readingTime;
-            this.upper = Integer.parseInt(upper);
-            this.lower = Integer.parseInt(lower);
+            this.systolic = Integer.parseInt(upper);
+            this.diastolic = Integer.parseInt(lower);
+        }
+        public int getSystolicBP(){
+            return systolic;
+        }
+        public int getDiastolicBP(){
+            return diastolic;
         }
     }
 }
