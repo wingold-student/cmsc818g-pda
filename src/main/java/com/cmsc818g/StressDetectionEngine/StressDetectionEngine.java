@@ -2,15 +2,21 @@ package com.cmsc818g.StressDetectionEngine;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletionStage;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import com.cmsc818g.StressManagementController;
 import com.cmsc818g.StressContextEngine.Reporters.BloodPressureReporter;
+import com.cmsc818g.StressContextEngine.Reporters.BloodPressureReporter.BloodPressure;
 import com.cmsc818g.StressContextEngine.Reporters.Reporter;
 import com.cmsc818g.StressContextEngine.Reporters.SleepReporter;
-import com.cmsc818g.StressContextEngine.Reporters.BloodPressureReporter.BloodPressure;
 
+import akka.NotUsed;
 import akka.actor.typed.ActorRef;
 import akka.actor.typed.Behavior;
 import akka.actor.typed.javadsl.AbstractBehavior;
@@ -19,6 +25,20 @@ import akka.actor.typed.javadsl.Behaviors;
 import akka.actor.typed.javadsl.Receive;
 import akka.actor.typed.receptionist.Receptionist;
 import akka.actor.typed.receptionist.ServiceKey;
+import akka.http.javadsl.model.DateTime;
+import akka.japi.Pair;
+import akka.stream.ClosedShape;
+import akka.stream.FlowShape;
+import akka.stream.Outlet;
+import akka.stream.UniformFanInShape;
+import akka.stream.javadsl.Flow;
+import akka.stream.javadsl.GraphDSL;
+import akka.stream.javadsl.Merge;
+import akka.stream.javadsl.RunnableGraph;
+import akka.stream.javadsl.Sink;
+import akka.stream.javadsl.SinkQueueWithCancel;
+import akka.stream.javadsl.Source;
+
 public class StressDetectionEngine extends AbstractBehavior<StressDetectionEngine.Command> {
 
   public interface Command {}
@@ -85,6 +105,61 @@ public class StressDetectionEngine extends AbstractBehavior<StressDetectionEngin
             return new AdaptedListing(response);
           }
         );
+
+        ServiceKey<BloodPressureReporter.Response> tmpKey = ServiceKey.create(BloodPressureReporter.Response.class, "BPSourceService");
+        context.ask(
+          Receptionist.Listing.class,
+          context.getSystem().receptionist(),
+          Duration.ofSeconds(3L),
+          (ActorRef<Receptionist.Listing> ref) -> Receptionist.find(tmpKey, ref),
+          (response, throwable) -> {
+            return new AdaptedListing(response);
+          }
+        );
+
+        Sink<BloodPressure, CompletionStage<BloodPressure>> sink = Sink.head();
+        BloodPressureReporter.BloodPressure tmp = new BloodPressure(Optional.of(DateTime.now()), "120", "80");
+        Source<BloodPressure, NotUsed> in = Source.from(Arrays.asList(tmp));
+
+        RunnableGraph<CompletionStage<BloodPressure>> result = RunnableGraph.fromGraph(
+          GraphDSL
+            .create(
+              sink,
+              (builder, out) -> {
+                //final UniformFanInShape<String, String> merge = builder.add(Merge.create(2));
+
+                final Outlet<BloodPressure> source = builder.add(in).out();
+                builder
+                  .from(source)
+                  //.viaFanIn(merge)
+                  .to(out);
+                  return ClosedShape.getInstance();
+              }));
+
+          try {
+            BloodPressure val = result.run(context.getSystem().classicSystem()).toCompletableFuture().get(3, TimeUnit.SECONDS);
+            //context.getLog().info("Via graph: " + val);
+          } catch (InterruptedException | ExecutionException | TimeoutException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+          }
+
+          /*
+        BloodPressure bpOne = new BloodPressure(Optional.of(DateTime.now()), "150", "90");
+        BloodPressure bpTwo = new BloodPressure(Optional.of(DateTime.now()), "130", "80");
+        Source<BloodPressure, NotUsed> bpSource = Source.single(bpOne);
+        // Sink<BloodPressure, SinkQueueWithCancel<BloodPressure>> bpSink = Sink.queue();
+        Flow<BloodPressure, BloodPressure, NotUsed> bpData = Flow.of(BloodPressure.class);
+        Sink<BloodPressure, NotUsed> bpSink = bpData.to(Sink.foreach(System.out::println));
+
+        // bpSource.to(bpData).run(context.getSystem().classicSystem());
+        // bpSource.to(bpSink);
+        bpSource.alsoTo(bpSink).to(bpSink).run(context.getSystem().classicSystem());
+        bpSource = Source.single(bpTwo);
+        bpSource.alsoTo(bpSink).to(bpSink).run(context.getSystem().classicSystem());
+        */
+
+
 
         /**
          * This is an example, do not actually spawn the blood pressure reporter here.

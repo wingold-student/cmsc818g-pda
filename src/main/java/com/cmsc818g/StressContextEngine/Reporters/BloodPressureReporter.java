@@ -4,7 +4,9 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.time.Duration;
 import java.util.Optional;
+import java.util.concurrent.CompletionStage;
 
 import org.slf4j.Logger;
 
@@ -19,8 +21,24 @@ import akka.actor.typed.javadsl.ActorContext;
 import akka.actor.typed.javadsl.Behaviors;
 import akka.actor.typed.javadsl.Receive;
 import akka.actor.typed.pubsub.Topic;
+import akka.actor.typed.receptionist.Receptionist;
+import akka.actor.typed.receptionist.ServiceKey;
 import akka.http.javadsl.model.DateTime;
+import akka.japi.JavaPartialFunction;
+import akka.stream.BoundedSourceQueue;
+import akka.stream.CompletionStrategy;
+import akka.stream.Graph;
+import akka.stream.Materializer;
+import akka.stream.OverflowStrategy;
+import akka.stream.SinkShape;
+import akka.stream.UniformFanOutShape;
+import akka.stream.impl.ActorRefSource;
+import akka.stream.javadsl.Broadcast;
+import akka.stream.javadsl.Sink;
 import akka.stream.javadsl.Source;
+import akka.stream.javadsl.SourceQueue;
+import akka.stream.javadsl.SourceQueueWithComplete;
+import akka.stream.typed.javadsl.ActorSource;
 
 /**
  * Main job of this actor is to get blood pressure readings.
@@ -57,6 +75,17 @@ public class BloodPressureReporter extends AbstractBehavior<Reporter.Command> {
 
         public Unsubscribe(ActorRef<BloodPressureReading> subscriber) {
             this.subscriber = subscriber;
+        }
+    }
+
+    public static final class CloseSource implements Response {
+        public CloseSource() {}
+    }
+
+    public static final class SourceError implements Response {
+        private final Exception ex;
+        public SourceError(Exception ex) {
+            this.ex = ex;
         }
     }
 
@@ -101,7 +130,8 @@ public class BloodPressureReporter extends AbstractBehavior<Reporter.Command> {
     private final String databaseURI;
     private final String tableName;
     private Optional<BloodPressure> lastReading;
-    private ActorRef<Topic.Command<BloodPressureReading>> bpTopic;
+    private final ActorRef<Topic.Command<BloodPressureReading>> bpTopic;
+    private final ActorRef<Response> bpSourceActor;
 
     /**
      * Creates a BloodPressureReporter.
@@ -117,6 +147,50 @@ public class BloodPressureReporter extends AbstractBehavior<Reporter.Command> {
         this.tableName = tableName;
         this.lastReading = Optional.empty();
         this.bpTopic = context.spawn(Topic.create(BloodPressureReading.class, "bp-topic"), "bp-topic");
+
+        //BoundedSourceQueue<BloodPressure> bpQueue = Source.<BloodPressure>queue(5).throttle(3, Duration.ofSeconds(3)).run(context.getSystem());
+        //Source<BloodPressureReading, ActorRef<BloodPressureReading>> source = ActorRefSource.actorRef
+        
+        Source<Response, ActorRef<Response>> bpSource = ActorSource.actorRef(
+            (m) -> m.getClass().equals(CloseSource.class),
+            (m) -> m.getClass().equals(SourceError.class) ? Optional.of(((SourceError) m).ex) : Optional.empty(),
+            5,
+            OverflowStrategy.dropHead() 
+        );
+
+        this.bpSourceActor =
+            bpSource
+                .collect(
+                    new JavaPartialFunction<Response, Optional<BloodPressure>>() {
+                        public Optional<BloodPressure> apply(Response r, boolean isCheck) {
+                            if (r instanceof BloodPressureReading) {
+                                return ((BloodPressureReading) r).value;
+                            } else {
+                                throw noMatch();
+                            }
+                        }
+                    }
+                )
+                //.to(Sink.foreach(System.out::println))
+                .to(Sink.ignore())
+                .run(context.getSystem().classicSystem());
+            
+        
+
+        ServiceKey<Response> sourceServiceKey = ServiceKey.create(Response.class, "BPSourceService");
+        context.getSystem().receptionist().tell(Receptionist.register(sourceServiceKey, bpSourceActor));
+        //Source<BloodPressureReading, SourceQueueWithComplete<BloodPressureReading>> queue = Source.<BloodPressureReading>queue(5, OverflowStrategy.dropHead());
+
+        BoundedSourceQueue<BloodPressure> sourceQueue = Source.<BloodPressure>queue(10)
+                    .throttle(5, Duration.ofSeconds(3))
+                    .to(Sink.ignore())
+                    .run(context.getSystem().classicSystem());
+        sourceQueue.offer(new BloodPressure(Optional.of(DateTime.now()), "140", "90"));
+
+
+        Source<BloodPressure, SourceQueueWithComplete<BloodPressure>> tmpSrc = Source.<BloodPressure>queue(10, OverflowStrategy.dropHead());
+        Sink<BloodPressure, CompletionStage<BloodPressure>> sink = Sink.head();
+
     }
 
     /************************************* 
@@ -179,6 +253,7 @@ public class BloodPressureReporter extends AbstractBehavior<Reporter.Command> {
                     String[] high_low = reading.get().split("/");
                     this.lastReading = Optional.of(new BloodPressure(readingTime, high_low[0], high_low[1]));
                     this.bpTopic.tell(Topic.publish(new BloodPressureReading(this.lastReading)));
+                    this.bpSourceActor.tell(new BloodPressureReading(this.lastReading));
                 }
 
                 results.close();
@@ -242,7 +317,7 @@ public class BloodPressureReporter extends AbstractBehavior<Reporter.Command> {
     /************************************* 
      * HELPER CLASSES
      *************************************/
-    public class BloodPressure {
+    public static class BloodPressure {
         public final Optional<DateTime> readingTime;
         public final int upper;
         public final int lower;
