@@ -6,6 +6,7 @@ import java.util.HashMap;
 
 import com.cmsc818g.StressManagementController;
 import com.cmsc818g.StressContextEngine.Reporters.BloodPressureReporter;
+import com.cmsc818g.StressContextEngine.Reporters.HeartRateReporter;
 import com.cmsc818g.StressContextEngine.Reporters.BusynessReporter;
 import com.cmsc818g.StressContextEngine.Reporters.Reporter;
 import com.cmsc818g.StressContextEngine.Reporters.SchedulerReporter;
@@ -109,13 +110,13 @@ public class StressContextEngine extends AbstractBehavior<StressContextEngine.Co
         context.getSystem().receptionist().tell(Receptionist.register(bpKey, bpReporter));
         reporters.put("BloodPressure", bpReporter);
         context.watch(bpReporter);
-/*
-        ActorRef<Reporter.Command> heartReporter = context.spawn(BloodPressureReporter.create(databaseURI, tableName), "HeartRate");
+
+        ActorRef<Reporter.Command> heartReporter = context.spawn(HeartRateReporter.create(databaseURI, tableName), "HeartRate");
         ServiceKey<Reporter.Command> hrKey = ServiceKey.create(Reporter.Command.class, "HeartRate");
         context.getSystem().receptionist().tell(Receptionist.register(hrKey, heartReporter));
         reporters.put("HeartRate", heartReporter);
         context.watch(heartReporter);
-
+/*
         ActorRef<Reporter.Command> sleepReporter = context.spawn(SleepReporter.create(databaseURI, tableName), "SleepHours");
         ServiceKey<Reporter.Command> sleepKey = ServiceKey.create(Reporter.Command.class, "SleepHours");
         context.getSystem().receptionist().tell(Receptionist.register(sleepKey, sleepReporter));
