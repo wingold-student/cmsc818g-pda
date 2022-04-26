@@ -12,7 +12,7 @@ import akka.actor.typed.javadsl.Behaviors;
 import akka.actor.typed.javadsl.Receive;
 /*
 message from controller:
-    current stress level (in healthInfo structure)
+    current stress level 
     past stress level
 Reporters to send msg to:
     Sleep Reporter
@@ -27,18 +27,18 @@ public class StressRecommendationEngine extends AbstractBehavior<StressRecommend
     public interface Command {}
     public static class recommendEngineGreet implements Command {
         public final ActorRef<StressManagementController.Command> replyTo;
-        public final StressManagementController.HealthInformation healthInfo; 
         public final ArrayList<String> list;
         public final int pastStressLevel;
+        public final int currentStressLevel;
         String message ;
         
         public recommendEngineGreet(String message, ActorRef<StressManagementController.Command> replyTo,
-        StressManagementController.HealthInformation info, ArrayList<String> list, int level) {
+        ArrayList<String> list, int past, int curr) {
           this.message = message;
           this.replyTo = replyTo;
-          this.healthInfo = info;
           this.list = list;
-          this.pastStressLevel = level;
+          this.pastStressLevel = past;
+          this.currentStressLevel = curr;
         }
       }//end of class recommendEngineGreet
 

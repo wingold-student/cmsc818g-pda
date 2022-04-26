@@ -21,26 +21,14 @@ public class StressManagementController extends AbstractBehavior<StressManagemen
 {
   public interface Command { }
     public static ArrayList<String> entityList = new ArrayList<String>();
-    public static HealthInformation PersonalHealthInfo = new HealthInformation();
     public static int pastStressLevel = 0;
+    public static int currentStressLevel = 0;
     
     //public final ActorRef<StressEntityManager.Command> child_EntityManager;
     public final ActorRef<StressContextEngine.Command> child_ContextEngine;
     public final ActorRef<StressDetectionEngine.Command> child_DetectionEngine;
     public final ActorRef<StressRecommendationEngine.Command> child_RecommendEngine;
     public final ActorRef<StressUIManager.Command> child_UIManager;
-    public static class HealthInformation {
-      public int systolicBP = 0;
-      public int diastolicBP = 0;
-      public int heartRate = 0;
-      public int sleepHour = 0;
-      public String location = null;
-      public int busyness = 0;
-      public int stressLevel = 0;
-      public String event = null;
-      public String schedule = null;
-    }
-  
 
     public StressManagementController(ActorContext<Command> context) {
         super(context); 
@@ -110,11 +98,10 @@ public class StressManagementController extends AbstractBehavior<StressManagemen
     }//end of ControllerToContextEngine
     public static class DetectionEngineToController implements Command {
       public final String message;
-
-      public DetectionEngineToController(String message, HealthInformation info) {
+      public DetectionEngineToController(String message, int level) {
         this.message = message;
-        pastStressLevel = PersonalHealthInfo.stressLevel; 
-        PersonalHealthInfo = info;
+        pastStressLevel = currentStressLevel;
+        currentStressLevel = level;
       }
     }//end of DetectionEngineToController
 
@@ -183,12 +170,12 @@ public class StressManagementController extends AbstractBehavior<StressManagemen
         getContext().getLog().info("Got response from Detection Engine: {}", response.message);
        if(response.message != "healthInfo") return null;
        //save past stress level and update with the new one
-       getContext().getLog().info("Estimated Stress Level: "+ PersonalHealthInfo.stressLevel);
+       getContext().getLog().info("Estimated Stress Level: "+ currentStressLevel);
        getContext().getLog().info("Past Stress Level: "+ pastStressLevel);
        //Recommendation process start
-       if(PersonalHealthInfo.stressLevel != 100)
+       if(currentStressLevel != 100)
           child_RecommendEngine.tell(new StressRecommendationEngine.recommendEngineGreet("recommend", 
-                            getContext().getSelf(), PersonalHealthInfo, entityList, pastStressLevel));
+                            getContext().getSelf(), entityList, pastStressLevel, currentStressLevel));
         return this;
     }
 
