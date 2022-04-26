@@ -3,7 +3,6 @@ package com.cmsc818g.StressDetectionEngine;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Optional;
-
 import com.cmsc818g.StressManagementController;
 import com.cmsc818g.StressContextEngine.Reporters.BloodPressureReporter;
 import com.cmsc818g.StressContextEngine.Reporters.Reporter;
@@ -28,8 +27,11 @@ Send to controller:
 public class StressDetectionEngine extends AbstractBehavior<StressDetectionEngine.Command> {
 
     public interface Command {}
+    public static int stressLevel;
+    public static int diastolicBP;
+    public static int systolicBP;
+    public static int heartRate;
 
-    public static StressManagementController.HealthInformation healthData;
     public static class detectionEngineGreet implements Command {
         public final ActorRef<StressManagementController.Command> replyTo;
         public final ArrayList<String> list;
@@ -55,7 +57,6 @@ public class StressDetectionEngine extends AbstractBehavior<StressDetectionEngin
       }
  
     public static Behavior<Command> create() {
-        healthData = new StressManagementController.HealthInformation();
         return Behaviors.setup(context -> new StressDetectionEngine(context));
     }
 
@@ -111,8 +112,9 @@ public class StressDetectionEngine extends AbstractBehavior<StressDetectionEngin
         //query reporters 
       if(response.message == "detect"){
         stressMeasurementProcess(); //stress detection + measurement process
-        getContext().getLog().info("Detection engine's stress level: "+  healthData.stressLevel); 
-        response.replyTo.tell(new StressManagementController.DetectionEngineToController("healthInfo", healthData));       
+        stressLevel = 3;
+        getContext().getLog().info("Detection engine's stress level: "+ stressLevel); 
+        response.replyTo.tell(new StressManagementController.DetectionEngineToController("healthInfo", stressLevel));       
       }
       return this;
     }
@@ -149,9 +151,9 @@ public class StressDetectionEngine extends AbstractBehavior<StressDetectionEngin
         BloodPressureReporter.BloodPressureReading response = wrapped.response;
         Optional<BloodPressureReporter.BloodPressure> bp = response.value;
         if(bp.isPresent()){
-          healthData.diastolicBP = bp.get().getDiastolicBP();
-          healthData.systolicBP = bp.get().getSystolicBP();
-          getContext().getLog().info("DiastolicBP:" , healthData.diastolicBP, "SystolicBP:" , healthData.systolicBP);
+          diastolicBP = bp.get().getDiastolicBP();
+          systolicBP = bp.get().getSystolicBP();
+          getContext().getLog().info("DiastolicBP:" , diastolicBP, "SystolicBP:" , systolicBP);
         }
       }//end of else
       return this;
@@ -182,30 +184,32 @@ public class StressDetectionEngine extends AbstractBehavior<StressDetectionEngin
 
     private Behavior<Command> stressMeasurementProcess(){ 
       //stress detection process
-      
+      getContext().getLog().info("BloodPressure: diastolicBP: "+ diastolicBP + ",  systolicBP " + systolicBP);
       //Blood Pressure 
-      if((healthData.diastolicBP > 120 || healthData.systolicBP > 180)||
-              (healthData.diastolicBP > 120 && healthData.systolicBP > 180)) { //emergency detected 
-                healthData.stressLevel = 5;
+      if((diastolicBP > 120 || systolicBP > 180)||
+              (diastolicBP > 120 && systolicBP > 180)) { //emergency detected 
+                stressLevel = 5;
       }
-      else if((healthData.diastolicBP >= 90 && healthData.diastolicBP <= 120)||
-              (healthData.systolicBP >= 140 && healthData.systolicBP <= 180)) { // Hypertension stage 2
-                healthData.stressLevel = 4;
+      else if((diastolicBP >= 90 && diastolicBP <= 120)||
+              (systolicBP >= 140 && systolicBP <= 180)) { // Hypertension stage 2
+                stressLevel = 4;
       }
-      else if((healthData.diastolicBP >= 80 && healthData.diastolicBP < 90)||
-              (healthData.systolicBP >= 130&& healthData.systolicBP < 140)) { // Hypertension stage 1
-                healthData.stressLevel = 3;
+      else if((diastolicBP >= 80 && diastolicBP < 90)||
+              (systolicBP >= 130&& systolicBP < 140)) { // Hypertension stage 1
+                stressLevel = 3;
       }
-      else if(healthData.diastolicBP < 80 &&
-             (healthData.systolicBP >= 120 && healthData.systolicBP < 130)) {  // Elevated
-              healthData.stressLevel = 2;
+      else if(diastolicBP < 80 &&
+             (systolicBP >= 120 && systolicBP < 130)) {  // Elevated
+              stressLevel = 2;
       }
-      else if(healthData.diastolicBP < 80 && healthData.systolicBP < 120) { // Normal 
-        healthData.stressLevel = 1;
+      else if(diastolicBP < 80 && systolicBP < 120) { // Normal 
+        stressLevel = 1;
       }
 
-      //HeartRate
-
+      //HeartRate //knn
+      if(heartRate == 0) { 
+            stressLevel = 5;
+      }
 
       //sleep hours
 
