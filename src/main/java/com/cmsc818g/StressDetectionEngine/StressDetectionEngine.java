@@ -3,6 +3,8 @@ package com.cmsc818g.StressDetectionEngine;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Optional;
+import java.io.InputStreamReader;
+import java.io.BufferedReader;
 import com.cmsc818g.StressManagementController;
 import com.cmsc818g.StressContextEngine.Reporters.BloodPressureReporter;
 import com.cmsc818g.StressContextEngine.Reporters.Reporter;
@@ -111,6 +113,7 @@ public class StressDetectionEngine extends AbstractBehavior<StressDetectionEngin
     private Behavior<Command> onEngineResponse(detectionEngineGreet response) { 
         //query reporters 
       if(response.message == "detect"){
+        knnMeasure();
         stressMeasurementProcess(); //stress detection + measurement process
         stressLevel = 3;
         getContext().getLog().info("Detection engine's stress level: "+ stressLevel); 
@@ -216,4 +219,35 @@ public class StressDetectionEngine extends AbstractBehavior<StressDetectionEngin
 
       return this;
     }//end of stressMeasurementProcess
+
+
+    void knnMeasure(){
+      try{
+        //ProcessBuilder pb = new ProcessBuilder(Arrays.asList("<Absolute Path to Python>/python", pythonPath));
+        String path = "/Users/yoonie/Desktop/test/cmsc818g-pda/src/main/java/com/cmsc818g/KNN.py";
+        ProcessBuilder pb = new ProcessBuilder("python3", path);
+        Process p = pb.start();
+
+        BufferedReader bfr = new BufferedReader(new InputStreamReader(p.getInputStream()));
+        String line = "";
+        //System.out.println("Running Python starts: " + line);
+        int exitCode = p.waitFor();
+        //System.out.println("Exit Code : "+exitCode);
+        int len;
+        if ((len = p.getErrorStream().available()) > 0) {
+            byte[] buf = new byte[len];
+            p.getErrorStream().read(buf);
+            //System.err.println("Command error:\""+new String(buf)+"\"");
+        }
+        line = bfr.readLine();
+        //System.out.println("First Line: " + line);
+        while ((line = bfr.readLine()) != null){
+            System.out.println("KNN Output: " + line);
+        }
+    }catch(Exception e){
+        System.out.println(e);
+    }
+
+
+    }
 }

@@ -1,7 +1,9 @@
 package com.cmsc818g;
 
 import java.io.IOException;
+
 import akka.actor.typed.ActorSystem;
+
 /**
  * Just something to start up the system and keep it running.
  * It will keep running until the user inputs something into the terminal.
@@ -11,9 +13,8 @@ import akka.actor.typed.ActorSystem;
  */
 public class App 
 {
-    public static void main( String[] args )  {
+    public static void main( String[] args ) throws Exception  {
         final ActorSystem<StressManagementController.Command> system = ActorSystem.create(StressManagementController.create(), "pda-system");
-
         try {
             System.in.read();
         } catch (IOException e) {
