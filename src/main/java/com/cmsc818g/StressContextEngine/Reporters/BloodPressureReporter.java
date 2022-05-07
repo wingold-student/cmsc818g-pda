@@ -17,6 +17,7 @@ import akka.actor.typed.javadsl.AbstractBehavior;
 import akka.actor.typed.javadsl.ActorContext;
 import akka.actor.typed.javadsl.Behaviors;
 import akka.actor.typed.javadsl.Receive;
+import akka.actor.typed.pubsub.Topic;
 import akka.http.javadsl.model.DateTime;
 
 /**
@@ -38,6 +39,22 @@ public class BloodPressureReporter extends AbstractBehavior<Reporter.Command> {
 
         public ReadBloodPressure(ActorRef<BloodPressureReading> replyTo) {
             this.replyTo = replyTo;
+        }
+    }
+
+    public static final class Subscribe implements Command {
+        final ActorRef<BloodPressureReading> subscriber;
+
+        public Subscribe(ActorRef<BloodPressureReading> subscriber) {
+            this.subscriber = subscriber;
+        }
+    }
+
+    public static final class Unsubscribe implements Command {
+        final ActorRef<BloodPressureReading> subscriber;
+
+        public Unsubscribe(ActorRef<BloodPressureReading> subscriber) {
+            this.subscriber = subscriber;
         }
     }
 
@@ -82,6 +99,7 @@ public class BloodPressureReporter extends AbstractBehavior<Reporter.Command> {
     private final String databaseURI;
     private final String tableName;
     private Optional<BloodPressure> lastReading;
+    private final ActorRef<Topic.Command<BloodPressureReading>> bpTopic;
 
     /**
      * Creates a BloodPressureReporter.
@@ -96,6 +114,7 @@ public class BloodPressureReporter extends AbstractBehavior<Reporter.Command> {
         this.databaseURI = databaseURI;
         this.tableName = tableName;
         this.lastReading = Optional.empty();
+        this.bpTopic = context.spawn(Topic.create(BloodPressureReading.class, "bp-topic"), "bp-topic");
     }
 
     /************************************* 
@@ -107,6 +126,8 @@ public class BloodPressureReporter extends AbstractBehavior<Reporter.Command> {
         return newReceiveBuilder()
             .onMessage(Reporter.ReadRowOfData.class, this::onReadRowOfData)
             .onMessage(ReadBloodPressure.class, this::onReadBloodPressure)
+            .onMessage(Subscribe.class, this::onSubscribe)
+            .onMessage(Unsubscribe.class, this::onUnsubscribe)
             .onSignal(PostStop.class, signal -> onPostStop())
             .build();
     }
@@ -155,6 +176,7 @@ public class BloodPressureReporter extends AbstractBehavior<Reporter.Command> {
                 if (reading.isPresent() && readingTime.isPresent()) {
                     String[] high_low = reading.get().split("/");
                     this.lastReading = Optional.of(new BloodPressure(readingTime, high_low[0], high_low[1]));
+                    this.bpTopic.tell(Topic.publish(new BloodPressureReading(this.lastReading)));
                 }
 
                 results.close();
@@ -193,6 +215,18 @@ public class BloodPressureReporter extends AbstractBehavior<Reporter.Command> {
         return this;
     }
 
+    private Behavior<Reporter.Command> onSubscribe(Subscribe msg) {
+        getContext().getLog().info("New subscriber added");
+        this.bpTopic.tell(Topic.subscribe(msg.subscriber));
+        return this;
+    }
+
+    private Behavior<Reporter.Command> onUnsubscribe(Unsubscribe msg) {
+        getContext().getLog().info("Actor has unsubscribed");
+        this.bpTopic.tell(Topic.unsubscribe(msg.subscriber));
+        return this;
+    }
+
     /**
      * Could do any necessary cleanup here.
      * 
@@ -222,6 +256,11 @@ public class BloodPressureReporter extends AbstractBehavior<Reporter.Command> {
         }
         public int getDiastolicBP(){
             return diastolic;
+        }
+
+        @Override
+        public String toString() {
+            return systolic + "/" + diastolic;
         }
     }
 }
