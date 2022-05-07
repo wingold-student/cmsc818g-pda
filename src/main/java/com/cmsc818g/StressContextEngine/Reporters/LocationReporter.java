@@ -171,10 +171,10 @@ public class LocationReporter extends AbstractBehavior<Reporter.Command>{
 
                 // Create the latest reading only if all data is there
                 if (reading.isPresent() && readingTime.isPresent()) {
-                    String[] high_low = reading.get().split("/");
+                    Optional<String> locationString = Optional.ofNullable(reading.get());
 
                     // UserLocation is immutable, so both can share this object
-                    UserLocation locValue = new UserLocation(readingTime, high_low[0], high_low[1]);
+                    UserLocation locValue = new UserLocation(readingTime, locationString);
 
                     this.lastReading = Optional.of(locValue);
                     this.locTopic.tell(Topic.publish(
@@ -246,19 +246,11 @@ public class LocationReporter extends AbstractBehavior<Reporter.Command>{
      *************************************/
     public class UserLocation {
         final Optional<DateTime> readingTime;
-        final int systolic;
-        final int diastolic;
+        final Optional<String> location;
 
-        public UserLocation(Optional<DateTime> readingTime, String upper, String lower) {
+        public UserLocation(Optional<DateTime> readingTime, Optional<String> location) {
             this.readingTime = readingTime;
-            this.systolic = Integer.parseInt(upper);
-            this.diastolic = Integer.parseInt(lower);
-        }
-        public int getSystolicBP(){
-            return systolic;
-        }
-        public int getDiastolicBP(){
-            return diastolic;
+            this.location = location;
         }
     }
     // public static Behavior<LocationReporter.Command> create(String reporterId, String groupId) {
