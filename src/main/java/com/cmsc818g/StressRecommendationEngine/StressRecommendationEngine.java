@@ -1,8 +1,14 @@
 package com.cmsc818g.StressRecommendationEngine;
 
 import java.util.ArrayList;
+import java.util.Optional;
 
 import com.cmsc818g.StressManagementController;
+import com.cmsc818g.StressContextEngine.Reporters.LocationReporter.UserLocation;
+import com.cmsc818g.StressContextEngine.Reporters.SleepReporter.SleepHours;
+import com.cmsc818g.StressRecommendationEngine.RecommendationMetricsAggregator.AggregatedRecommendationMetrics;
+import com.cmsc818g.StressRecommendationEngine.RecommendationMetricsAggregator.RecommendationMetricsConfig;
+
 import akka.actor.typed.ActorRef;
 import akka.actor.typed.Behavior;
 import akka.actor.typed.PostStop;
@@ -24,7 +30,18 @@ Fetch recommendation from Policy DB
 
 public class StressRecommendationEngine extends AbstractBehavior<StressRecommendationEngine.Command> {
 
+    /************************************* 
+     * MESSAGES IT RECEIVES 
+     *************************************/
     public interface Command {}
+
+    public static class ScheduleReporterToRecommendation implements Command {
+      public final String message; //get schedule from schedule reporter
+
+      public ScheduleReporterToRecommendation(String message) {
+        this.message = message;
+      }
+    }
     public static class recommendEngineGreet implements Command {
         public final ActorRef<StressManagementController.Command> replyTo;
         public final ArrayList<String> list;
@@ -42,15 +59,53 @@ public class StressRecommendationEngine extends AbstractBehavior<StressRecommend
         }
       }//end of class recommendEngineGreet
 
+    public static final class AdaptedAggreatedMetrics implements Command {
+        public final AggregatedRecommendationMetrics response;
+
+        public AdaptedAggreatedMetrics(AggregatedRecommendationMetrics response) {
+            this.response = response;
+        }
+    }
+
+    /************************************* 
+     * MESSAGES IT SENDS
+     *************************************/
+
+    /************************************* 
+     * CREATION 
+     *************************************/
     public static Behavior<Command> create() {
       return Behaviors.setup(context -> new StressRecommendationEngine(context));
     }
 
+    private final ActorRef<RecommendationMetricsAggregator.Command> aggregator;
+    private final ActorRef<RecommendationMetricsAggregator.AggregatedRecommendationMetrics> aggregatorAdapter;
+
+    private Optional<SleepHours> sleepReading;
+    private Optional<UserLocation> locReading;
+    private boolean haveMetrics = false;
+
     public StressRecommendationEngine(ActorContext<Command> context) {
         super(context);
         getContext().getLog().info("Recommendation Engine actor created"); 
+
+        // TODO: Temporary
+        RecommendationMetricsConfig config = new RecommendationMetricsConfig(
+          null,
+          null,
+          1,
+          1);
+        
+        this.aggregatorAdapter = context.messageAdapter(RecommendationMetricsAggregator.AggregatedRecommendationMetrics.class, AdaptedAggreatedMetrics::new);
+
+        // TODO: Note this starts it immediately
+        this.aggregator = context.spawn(RecommendationMetricsAggregator.create(config, this.aggregatorAdapter), "RecommednationAggregator");
     }
   
+    /************************************* 
+     * MESSAGE HANDLING 
+     *************************************/
+
     /*
     * receiving responses from reporters
     */
@@ -58,8 +113,7 @@ public class StressRecommendationEngine extends AbstractBehavior<StressRecommend
     public Receive<Command> createReceive() {
       return newReceiveBuilder()
       .onMessage(recommendEngineGreet.class, this::onEngineResponse)
-      .onMessage(SleepReporterToRecommendation.class, this::onSleepReporterResponse)      
-      .onMessage(LocationReporterToRecommendation.class, this::onLocationReporterResponse)
+      .onMessage(AdaptedAggreatedMetrics.class, this::onAggregatedMetrics)
       .onMessage(ScheduleReporterToRecommendation.class, this::onScheduleReporterResponse)
       .onSignal(PostStop.class, signal -> onPostStop())
       .build();
@@ -74,13 +128,14 @@ public class StressRecommendationEngine extends AbstractBehavior<StressRecommend
       return this;
     }
 
-    private Behavior<Command> onSleepReporterResponse(SleepReporterToRecommendation response) {
-      getContext().getLog().info("Got response from Sleep Reporter: {}", response.sleepHours); 
-      return this;
-    }
+    private Behavior<Command> onAggregatedMetrics(AdaptedAggreatedMetrics wrapped) {
+      AggregatedRecommendationMetrics metrics = wrapped.response;
 
-    private Behavior<Command> onLocationReporterResponse(LocationReporterToRecommendation response) {
-      getContext().getLog().info("Got response from Location Reporter: {}", response.location); 
+      sleepReading = metrics.sleepReading;
+      locReading = metrics.locReading;
+
+      // TODO: Somewhat temporary. Could instead now call the actual recommendation algorithm
+      haveMetrics = true;
       return this;
     }
 
@@ -94,28 +149,9 @@ public class StressRecommendationEngine extends AbstractBehavior<StressRecommend
       return this;
   }
 
-    public static class SleepReporterToRecommendation implements Command {
-      public final int sleepHours; //get sleep hours from sleep reporter
-
-      public SleepReporterToRecommendation(int sleepHours) {
-        this.sleepHours = sleepHours;
-      }
-    }
-
-    public static class LocationReporterToRecommendation implements Command {
-      public final String location; //get location from location reporter
-      public LocationReporterToRecommendation(String location) {
-        this.location = location;
-      }
-    }
-
-    public static class ScheduleReporterToRecommendation implements Command {
-      public final String message; //get schedule from schedule reporter
-
-      public ScheduleReporterToRecommendation(String message) {
-        this.message = message;
-      }
-    }
+    /************************************* 
+     * HELPER FUNCTIONS
+     *************************************/
 
 
 }
