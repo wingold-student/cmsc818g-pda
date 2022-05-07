@@ -1,0 +1,19 @@
+id,Date/Time,Event,Location,Schedule,Heartbeat,bp-systolic,bp-diastolic,SleepHours,busyness,Stresslevel
+1,2022 04 17 8:00,wake up,home,,60,100,75,3,2,2
+2,2022 04 17 8:30,breakfast,home,,72,102,75,3,2,2
+3,2022 04 17 9:00,work,office,work,87,104,80,3,3,2
+4,2022 04 17 9:30,work,office,work,83,106,85,3,3,2
+5,2022 04 17 10:00,meeting,office,meeting1,88,113,86,3,3,2
+6,2022 04 17 10:30,meeting,office,meeting1,97,117,87,3,3,2
+7,2022 04 17 11:00,class,classroom,class,98,120,81,3,4,3
+8,2022 04 17 11:30,class,classroom,class,84,123,82,3,4,3
+9,2022 04 17 12:00,class,classroom,class,76,124,83,3,4,3
+10,2022 04 17 12:30,lunch,restaurant,,78,124,82,3,3,3
+11,2022 04 17 13:00,lunch,restaurant,,70,125,89,3,3,3
+12,2022 04 17 13:30,work,office,work,80,132,85,3,3,3
+13,2022 04 17 14:00,meeting,office,meeting2,103,135,86,3,4,4
+14,2022 04 17 14:30,meeting,office,meeting2,107,133,86,3,4,4
+15,2022 04 17 15:00,pda-treatment,home,meeting3,90,130,85,3,2,3
+16,2022 04 17 15:30,,home,meeting3,83,128,82,3,2,3
+17,2022 04 17 16:00,pda-treatment,home,work,60,111,83,3,1,2
+18,2022 04 17 16:30,,home,work,58,107,82,3,1,2

@@ -113,8 +113,8 @@ public class StressDetectionEngine extends AbstractBehavior<StressDetectionEngin
     private Behavior<Command> onEngineResponse(detectionEngineGreet response) { 
         //query reporters 
       if(response.message == "detect"){
-        knnPrediction();
-        stressMeasurementProcess(); //stress detection + measurement process
+        knnPrediction(); //stress detection + measurement process
+        stressMeasurementProcess(); 
         stressLevel = 3;
         getContext().getLog().info("Detection engine's stress level: "+ stressLevel); 
         response.replyTo.tell(new StressManagementController.DetectionEngineToController("healthInfo", stressLevel));       
@@ -208,18 +208,8 @@ public class StressDetectionEngine extends AbstractBehavior<StressDetectionEngin
       else if(diastolicBP < 80 && systolicBP < 120) { // Normal 
         stressLevel = 1;
       }
-
-      //HeartRate //knn
-      if(heartRate == 0) { 
-            stressLevel = 5;
-      }
-
-      //sleep hours
-
-
       return this;
-    }//end of stressMeasurementProcess
-
+    }
 
     void knnPrediction(){
         getContext().getLog().info("knn measure started ");
@@ -227,21 +217,21 @@ public class StressDetectionEngine extends AbstractBehavior<StressDetectionEngin
         try{
           //ProcessBuilder pb = new ProcessBuilder(Arrays.asList("<Absolute Path to Python>/python", pythonPath));
           String path = "/Users/yoonie/Desktop/test/cmsc818g-pda/src/main/java/com/cmsc818g/KNN.py";
-          ProcessBuilder pb = new ProcessBuilder("python3", path);
-          Process p = pb.start();
+          ProcessBuilder pb = new ProcessBuilder("python3", path, "3", "1", "120", "80", "80"); // sleep-hour, busyness, bp-systolic, bp-diastolic, heart-rate
+          Process process = pb.start();
 
-          BufferedReader bfr = new BufferedReader(new InputStreamReader(p.getInputStream()));
+          BufferedReader bfr = new BufferedReader(new InputStreamReader(process.getInputStream()));
           String line = "";
           //System.out.println("Running Python starts: " + line);
-          int exitCode = p.waitFor();
+          int exitCode = process.waitFor();
           //System.out.println("Exit Code : "+exitCode);
           int len;
-          if ((len = p.getErrorStream().available()) > 0) {
+          if ((len = process.getErrorStream().available()) > 0) {
               byte[] buf = new byte[len];
-              p.getErrorStream().read(buf);
+              process.getErrorStream().read(buf);
               //System.err.println("Command error:\""+new String(buf)+"\"");
           }
-          line = bfr.readLine();
+          //line = bfr.readLine();
           //System.out.println("First Line: " + line);
           while ((line = bfr.readLine()) != null){
               System.out.println("KNN Output: " + line);

@@ -194,6 +194,5 @@ public class StressManagementController extends AbstractBehavior<StressManagemen
       getContext().getLog().info("Controller shutting down");
       return this;
   }
-
 }
 

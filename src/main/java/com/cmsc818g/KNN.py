@@ -1,5 +1,6 @@
 #!/usr/bin/python
 
+import sys
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -18,6 +19,61 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, mean_squared_error  
 
+
+
+# ############################################################
+#       knn training and prediction with hr_data.csv
+# ############################################################
+class KNN:
+    def __init__(self):
+        pass
+
+    # print(sys.argv[0],sys.argv[1],sys.argv[2],sys.argv[3],sys.argv[4]) # sleep-hour, busyness, bp-systolic, bp-diastolic, heart-rate
+    # health_data = {sys.argv[0],sys.argv[1],sys.argv[2],sys.argv[3],sys.argv[4]}
+    # # 1,3,2,132,80,79,3
+    # health_data = (np.array([[3,2,132,80,79],[0,0,0,0,0]]))
+    # cur_data = pd.DataFrame (health_data)
+    # dataset = pd.read_csv('src/main/resources/knn_data.csv', index_col="id")
+    # datatop = dataset.head()
+    # # print(datatop)
+  
+    # X = dataset.iloc[:, [1,2,3,4,5]].values # splits the data and make separate array X to hold attributes.
+    # y = dataset.iloc[:, -1].values  # splits the data and makes a separate array y to hold corresponding labels.
+    # # print(X.shape)
+    # # print(y.shape)
+    # # X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.02, random_state=0) # training 80%, testing 20%
+    # k_split = 220   
+    # X_train = X[:k_split]
+    # y_train = y[:k_split]
+    # # X_test = X[k_split:]
+    # # y_test = y[k_split:]
+    # X_test = health_data[0:]
+    # y_test = health_data[0:]
+
+    # ##### KNN regression #####
+    # reg = KNeighborsRegressor(n_neighbors = 3)
+    # reg.fit(X_train, y_train)
+    # y_pred = reg.predict(X_test)
+    # # y_pred = cross_val_predict(reg, X, y, cv=5)
+    # #print(y_pred.round(0))
+
+    # score = reg.score(X_test, y_test)
+    # print("score", score)
+    
+    ##### KNN classification #####
+    # knn = KNeighborsClassifier(n_neighbors = 3, p = 2) 
+    # # p = 1 , Manhattan Distance
+    # # p = 2 , Euclidean Distance
+    # # p = infinity , Cheybchev Distance
+    
+    # knn.fit(X_train, y_train)
+    # y_pred = knn.predict(X_test)
+  
+    # print("accuracy score: " , accuracy_score(y_test, y_pred)) 
+    # print(classification_report(y_test, y_pred))
+    # print(confusion_matrix(y_test, y_pred))
+    
+    
 # ################################################################
 #       csv file read and write 
 #       create data file with target (stress level)
@@ -115,7 +171,7 @@ class File_setting:
                 row[3] = int(row[3]) # bp-systolic
                 bp_systolic.append(row[3])
                 row[4] = int(row[4]) # bp-diastolic
-                bp_diastolic.append(row[3])
+                bp_diastolic.append(row[4])
                 row[5] = int(row[5]) # heart-rate
                 heartrate.append(row[5])
                 level = defineStress(row[1], row[2], row[3], row[4], row[5])
@@ -135,51 +191,7 @@ class File_setting:
         csvfile.close()    
 
 
-# ######################################################
-#       knn training with hr_data.csv
-# #######################################################
-class KNN:
-    def __init__(self):
-        pass
-
-    dataset = pd.read_csv('src/main/resources/knn_data.csv', index_col="id")
-    datatop = dataset.head()
-    print(datatop)
-  
-    X = dataset.iloc[:, [1,2,3,4,5]].values # splits the data and make separate array X to hold attributes.
-    y = dataset.iloc[:, -1].values  # splits the data and makes a separate array y to hold corresponding labels.
-    # print(X.shape)
-    # print(y.shape)
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.02, random_state=0) # training 80%, testing 20%
-    # k_split = 220   
-    # X_train = X[:k_split]
-    # y_train = y[:k_split]
-    # X_test = X[k_split:]
-    # y_test = y[k_split:]
-
-    ##### KNN regression #####
-    reg = KNeighborsRegressor(n_neighbors = 3)
-    reg.fit(X_train, y_train)
-    y_pred = reg.predict(X_test)
-    # y_pred = cross_val_predict(reg, X, y, cv=5)
-    #print(y_pred.round(0))
-
-    score = reg.score(X_test, y_test)
-    print("score", score)
-    
-    ##### KNN classification #####
-    # knn = KNeighborsClassifier(n_neighbors = 3, p = 2) 
-    # # p = 1 , Manhattan Distance
-    # # p = 2 , Euclidean Distance
-    # # p = infinity , Cheybchev Distance
-    
-    # knn.fit(X_train, y_train)
-    # y_pred = knn.predict(X_test)
-  
-    # print("accuracy score: " , accuracy_score(y_test, y_pred)) 
-    # print(classification_report(y_test, y_pred))
-    # print(confusion_matrix(y_test, y_pred))
     
 if __name__ == '__main__':
-    File_setting()
+    # File_setting()
     KNN()

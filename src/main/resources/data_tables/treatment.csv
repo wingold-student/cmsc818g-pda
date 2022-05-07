@@ -1,0 +1,17 @@
+﻿id,stress-level ,sleep-condition, location-condition ,treatment
+1,1,good,public,deep breathing exercise 
+2,1,bad,public,deep breathing exercise 
+3,1,good,personal,deep breathing exercise 
+4,1,bad,personal,deep breathing exercise 
+5,2,good,public,meditation
+6,2,bad,public,meditation
+7,2,good,personal,work out
+8,2,bad,personal,take a walk
+9,3,good,public,mindfulness meditation
+10,3,bad,public,mindfulness meditation
+11,3,good,personal,relaxation to music
+12,3,bad,personal,relaxation to music
+13,4,good,public,cancel plans
+14,4,bad,public,cancel plans and get some sleep
+15,4,good,personal,contact therapist or close friends and family
+16,4,bad,personal,contact therapist or close friends and family
