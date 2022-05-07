@@ -20,6 +20,7 @@ import akka.actor.typed.javadsl.AbstractBehavior;
 import akka.actor.typed.javadsl.ActorContext;
 import akka.actor.typed.javadsl.Behaviors;
 import akka.actor.typed.javadsl.Receive;
+import akka.actor.typed.pubsub.Topic;
 import akka.http.javadsl.model.DateTime;
 
 public class SleepReporter extends AbstractBehavior<Reporter.Command>{
@@ -35,6 +36,21 @@ public class SleepReporter extends AbstractBehavior<Reporter.Command>{
 
         public ReadSleepHours(ActorRef<SleepHoursReading> replyTo) {
             this.replyTo = replyTo;
+        }
+    }
+    public static final class Subscribe implements Command {
+        final ActorRef<SleepHoursReading> subscriber;
+
+        public Subscribe(ActorRef<SleepHoursReading> subscriber) {
+            this.subscriber = subscriber;
+        }
+    }
+
+    public static final class Unsubscribe implements Command {
+        final ActorRef<SleepHoursReading> subscriber;
+
+        public Unsubscribe(ActorRef<SleepHoursReading> subscriber) {
+            this.subscriber = subscriber;
         }
     }
 
@@ -79,6 +95,7 @@ public class SleepReporter extends AbstractBehavior<Reporter.Command>{
     private final String databaseURI;
     private final String tableName;
     private Optional<SleepHours> lastReading;
+    private final ActorRef<Topic.Command<SleepHoursReading>> sleepTopic;
 
     /**
      * Creates a BloodPressureReporter.
@@ -93,6 +110,7 @@ public class SleepReporter extends AbstractBehavior<Reporter.Command>{
         this.databaseURI = databaseURI;
         this.tableName = tableName;
         this.lastReading = Optional.empty();
+        this.sleepTopic = context.spawn(Topic.create(SleepHoursReading.class, "sleep-topic"), "sleep-topic");
     }
 
     /************************************* 
@@ -104,6 +122,8 @@ public class SleepReporter extends AbstractBehavior<Reporter.Command>{
         return newReceiveBuilder()
             .onMessage(Reporter.ReadRowOfData.class, this::onReadRowOfData)
             .onMessage(ReadSleepHours.class, this::onReadSleepHours)
+            .onMessage(Subscribe.class, this::onSubscribe)
+            .onMessage(Unsubscribe.class, this::onUnsubscribe)
             .onSignal(PostStop.class, signal -> onPostStop())
             .build();
     }
@@ -151,7 +171,14 @@ public class SleepReporter extends AbstractBehavior<Reporter.Command>{
                 // Create the latest reading only if all data is there
                 if (reading.isPresent() && readingTime.isPresent()) {
                     String[] high_low = reading.get().split("/");
-                    this.lastReading = Optional.of(new SleepHours(readingTime, high_low[0], high_low[1]));
+
+                    // Can share because it is immutable
+                    SleepHours sleepValue = new SleepHours(readingTime, high_low[0], high_low[1]);
+
+                    this.lastReading = Optional.of(sleepValue);
+                    this.sleepTopic.tell(Topic.publish(
+                        new SleepHoursReading(Optional.of(sleepValue))
+                    ));
                 }
 
                 results.close();
@@ -189,6 +216,19 @@ public class SleepReporter extends AbstractBehavior<Reporter.Command>{
         msg.replyTo.tell(new SleepHoursReading(this.lastReading));
         return this;
     }
+
+    private Behavior<Reporter.Command> onSubscribe(Subscribe msg) {
+        getContext().getLog().info("New subscriber added");
+        this.sleepTopic.tell(Topic.subscribe(msg.subscriber));
+        return this;
+    }
+
+    private Behavior<Reporter.Command> onUnsubscribe(Unsubscribe msg) {
+        getContext().getLog().info("Actor has unsubscribed");
+        this.sleepTopic.tell(Topic.unsubscribe(msg.subscriber));
+        return this;
+    }
+
 
     /**
      * Could do any necessary cleanup here.
