@@ -15,6 +15,7 @@ import akka.actor.typed.javadsl.AskPattern;
 import akka.http.javadsl.marshallers.jackson.Jackson;
 import akka.http.javadsl.marshalling.sse.EventStreamMarshalling;
 import akka.http.javadsl.model.StatusCodes;
+import akka.http.javadsl.model.headers.RawHeader;
 import akka.http.javadsl.model.sse.ServerSentEvent;
 import akka.http.javadsl.server.Route;
 import akka.stream.javadsl.Source;
@@ -64,8 +65,10 @@ public class WebRoutes {
             ),
             path("actor", () ->
                 get(() ->
+                respondWithHeader(RawHeader.create("Access-Control-Allow-Origin", "http://localhost:8080"), () -> 
                     onSuccess(getTestJSON(),
                         data -> complete(StatusCodes.OK, data, Jackson.marshaller()))
+                    )
                 )
             ),
             path("sse", () ->
