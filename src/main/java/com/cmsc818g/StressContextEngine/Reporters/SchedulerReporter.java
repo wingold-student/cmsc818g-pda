@@ -23,6 +23,7 @@ import akka.actor.typed.javadsl.AbstractBehavior;
 import akka.actor.typed.javadsl.ActorContext;
 import akka.actor.typed.javadsl.Behaviors;
 import akka.actor.typed.javadsl.Receive;
+import akka.actor.typed.pubsub.Topic;
 import akka.http.javadsl.model.DateTime;
 import akka.pattern.StatusReply;
 
@@ -127,18 +128,18 @@ public class SchedulerReporter extends AbstractBehavior<Reporter.Command> implem
         }
     }
 
-    public static final class SubscribeForNewEvents implements Command {
-        final ActorRef<Response> subscriber;
+    public static final class SubscribeForCurrentEvent implements Command {
+        final ActorRef<CurrentEventResponse> subscriber;
 
-        public SubscribeForNewEvents(ActorRef<Response> subscriber) {
+        public SubscribeForCurrentEvent(ActorRef<CurrentEventResponse> subscriber) {
             this.subscriber = subscriber;
         }
     }
 
-    public static final class UnsubscribeForNewEvents implements Command {
-        final ActorRef<Response> subscriber;
+    public static final class UnsubscribeFromCurrentEvent implements Command {
+        final ActorRef<CurrentEventResponse> subscriber;
 
-        public UnsubscribeForNewEvents(ActorRef<Response> subscriber) {
+        public UnsubscribeFromCurrentEvent(ActorRef<CurrentEventResponse> subscriber) {
             this.subscriber = subscriber;
         }
     }
@@ -227,6 +228,7 @@ public class SchedulerReporter extends AbstractBehavior<Reporter.Command> implem
     private Optional<CalendarEvent> curEvent;
     private HashMap<String, CalendarData> calendars;
     private final String calendarDemoName;
+    private final ActorRef<Topic.Command<CurrentEventResponse>> curEventTopic;
 
     /**
      * Constructor for this actor
@@ -239,6 +241,8 @@ public class SchedulerReporter extends AbstractBehavior<Reporter.Command> implem
         this.calendarDemoName = calendarName;
         CalendarData originalCalendar = new CalendarData(calendarName, calendarDBURI, calendarTableName);
         calendars.put(calendarName, originalCalendar);
+
+        this.curEventTopic = context.spawn(Topic.create(CurrentEventResponse.class, "curevent-topic"), "curevent-topic");
 
         context.getLog().info("Scheduler Reporter");
     }
@@ -290,6 +294,8 @@ public class SchedulerReporter extends AbstractBehavior<Reporter.Command> implem
             .onMessage(AddToSchedule.class, this::onAddToSchedule)
             .onMessage(AddCalendar.class, this::onAddCalendar)
             .onMessage(GetEventsInRange.class, this::onGetEventsInRange)
+            .onMessage(SubscribeForCurrentEvent.class, this::onSubscribeForCurrentEvent)
+            .onMessage(UnsubscribeFromCurrentEvent.class, this::onUnsubscribeFromCurrentEvent)
             .onSignal(PostStop.class, signal -> onPostStop())
             .build();
     }
@@ -318,8 +324,14 @@ public class SchedulerReporter extends AbstractBehavior<Reporter.Command> implem
                 if (eventName.isPresent() && eventTime.isPresent()) {
                     Duration tmpDuration = Duration.ofMinutes(30L); // TODO: TEMPORARY
                     Optional.of(Duration.ofDays(1));
+
+                    // Can share event because it is immutable
                     CalendarEvent event = new CalendarEvent(eventName.get(), eventTime.get(), tmpDuration, "");
+
                     this.curEvent = Optional.of(event);
+                    this.curEventTopic.tell(Topic.publish(
+                        new CurrentEventResponse(Optional.of(event))
+                    ));
                 }
 
                 results.close();
@@ -386,6 +398,17 @@ public class SchedulerReporter extends AbstractBehavior<Reporter.Command> implem
         msg.replyTo.tell(new ResponseEventsInRange(new HashMap<String, Object>()));
         return this;
     }
+    private Behavior<Reporter.Command> onSubscribeForCurrentEvent(SubscribeForCurrentEvent msg) {
+        getContext().getLog().info("New current event subscriber added");
+        this.curEventTopic.tell(Topic.subscribe(msg.subscriber));
+        return this;
+    }
+
+    private Behavior<Reporter.Command> onUnsubscribeFromCurrentEvent(UnsubscribeFromCurrentEvent msg) {
+        getContext().getLog().info("Actor has unsubscribed from current event");
+        this.curEventTopic.tell(Topic.unsubscribe(msg.subscriber));
+        return this;
+    }
     
     /**
      * What to do when shut down by a supervisor
@@ -410,10 +433,10 @@ public class SchedulerReporter extends AbstractBehavior<Reporter.Command> implem
         }
     }
     public class CalendarEvent {
-        String eventName;
-        DateTime time;
-        Duration length;
-        String calendarType;
+        final String eventName;
+        final DateTime time;
+        final Duration length;
+        final String calendarType;
 
         public CalendarEvent(String eventName, DateTime time, Duration length, String calendarType) {
             this.eventName = eventName;
