@@ -21,6 +21,7 @@ import akka.actor.typed.javadsl.AbstractBehavior;
 import akka.actor.typed.javadsl.ActorContext;
 import akka.actor.typed.javadsl.Behaviors;
 import akka.actor.typed.javadsl.Receive;
+import akka.actor.typed.pubsub.Topic;
 import akka.http.javadsl.model.DateTime;
 
 public class LocationReporter extends AbstractBehavior<Reporter.Command>{
@@ -36,6 +37,21 @@ public class LocationReporter extends AbstractBehavior<Reporter.Command>{
 
         public ReadLocation(ActorRef<LocationReading> replyTo) {
             this.replyTo = replyTo;
+        }
+    }
+    public static final class Subscribe implements Command {
+        final ActorRef<LocationReading> subscriber;
+
+        public Subscribe(ActorRef<LocationReading> subscriber) {
+            this.subscriber = subscriber;
+        }
+    }
+
+    public static final class Unsubscribe implements Command {
+        final ActorRef<LocationReading> subscriber;
+
+        public Unsubscribe(ActorRef<LocationReading> subscriber) {
+            this.subscriber = subscriber;
         }
     }
 
@@ -80,6 +96,7 @@ public class LocationReporter extends AbstractBehavior<Reporter.Command>{
     private final String databaseURI;
     private final String tableName;
     private Optional<UserLocation> lastReading;
+    private final ActorRef<Topic.Command<LocationReading>> locTopic;
 
     /**
      * Creates a BloodPressureReporter.
@@ -94,6 +111,7 @@ public class LocationReporter extends AbstractBehavior<Reporter.Command>{
         this.databaseURI = databaseURI;
         this.tableName = tableName;
         this.lastReading = Optional.empty();
+        this.locTopic = context.spawn(Topic.create(LocationReading.class, "loc-topic"), "loc-topic");
     }
 
     /************************************* 
@@ -105,6 +123,8 @@ public class LocationReporter extends AbstractBehavior<Reporter.Command>{
         return newReceiveBuilder()
             .onMessage(Reporter.ReadRowOfData.class, this::onReadRowOfData)
             .onMessage(ReadLocation.class, this::onReadLocation)
+            .onMessage(Subscribe.class, this::onSubscribe)
+            .onMessage(Unsubscribe.class, this::onUnsubscribe)
             .onSignal(PostStop.class, signal -> onPostStop())
             .build();
     }
@@ -152,7 +172,14 @@ public class LocationReporter extends AbstractBehavior<Reporter.Command>{
                 // Create the latest reading only if all data is there
                 if (reading.isPresent() && readingTime.isPresent()) {
                     String[] high_low = reading.get().split("/");
-                    this.lastReading = Optional.of(new UserLocation(readingTime, high_low[0], high_low[1]));
+
+                    // UserLocation is immutable, so both can share this object
+                    UserLocation locValue = new UserLocation(readingTime, high_low[0], high_low[1]);
+
+                    this.lastReading = Optional.of(locValue);
+                    this.locTopic.tell(Topic.publish(
+                        new LocationReading(Optional.of(locValue))
+                    ));
                 }
 
                 results.close();
@@ -188,6 +215,18 @@ public class LocationReporter extends AbstractBehavior<Reporter.Command>{
      */
     private Behavior<Reporter.Command> onReadLocation(ReadLocation msg) {
         msg.replyTo.tell(new LocationReading(this.lastReading));
+        return this;
+    }
+
+    private Behavior<Reporter.Command> onSubscribe(Subscribe msg) {
+        getContext().getLog().info("New subscriber added");
+        this.locTopic.tell(Topic.subscribe(msg.subscriber));
+        return this;
+    }
+
+    private Behavior<Reporter.Command> onUnsubscribe(Unsubscribe msg) {
+        getContext().getLog().info("Actor has unsubscribed");
+        this.locTopic.tell(Topic.unsubscribe(msg.subscriber));
         return this;
     }
 
