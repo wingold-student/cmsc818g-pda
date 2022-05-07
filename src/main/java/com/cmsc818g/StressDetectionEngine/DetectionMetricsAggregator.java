@@ -267,7 +267,7 @@ public class DetectionMetricsAggregator extends AbstractBehavior<DetectionMetric
     /************************************* 
      * HELPER CLASSES
      *************************************/
-    public class DetectionConfig {
+    public static class DetectionConfig {
         public final ActorRef<BloodPressureReporter.Command> bpReporter;
         public final ActorRef<HeartRateReporter.Command> hrReporter;
         public final ActorRef<SleepReporter.Command> sleepReporter;
