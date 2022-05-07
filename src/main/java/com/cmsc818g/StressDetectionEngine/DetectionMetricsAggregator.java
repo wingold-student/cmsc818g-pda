@@ -122,7 +122,7 @@ public class DetectionMetricsAggregator extends AbstractBehavior<DetectionMetric
     /************************************* 
      * CREATION 
      *************************************/
-    public static Behavior<Command> create(ActorRef<AggregatedStressMetrics> replyTo, DetectionConfig config) {
+    public static Behavior<Command> create(ActorRef<AggregatedStressMetrics> replyTo, DetectionMetricsConfig config) {
         return Behaviors.<Command>supervise(
             Behaviors.setup(
                 context -> new DetectionMetricsAggregator(context, replyTo, config)
@@ -137,7 +137,7 @@ public class DetectionMetricsAggregator extends AbstractBehavior<DetectionMetric
     private final ActorRef<LocationReporter.LocationReading> locAdapter;
     private final ActorRef<BusynessReporter.BusynessLevelResponse> busyAdapter;
     private final ActorRef<MedicalHistoryReporter.QueryResponse> medicalAdapter;
-    private final DetectionConfig config;
+    private final DetectionMetricsConfig config;
 
     private int bpCount = 0, hrCount = 0, sleepCount = 0, locCount = 0, busyCount = 0, medicalCount = 0;
     private Optional<BloodPressure> bpReading;
@@ -147,7 +147,7 @@ public class DetectionMetricsAggregator extends AbstractBehavior<DetectionMetric
     private Optional<BusynessReading> busyReading;
     private Optional<String> medicalReading;
 
-    public DetectionMetricsAggregator(ActorContext<Command> context, ActorRef<AggregatedStressMetrics> replyTo, DetectionConfig config) {
+    public DetectionMetricsAggregator(ActorContext<Command> context, ActorRef<AggregatedStressMetrics> replyTo, DetectionMetricsConfig config) {
         super(context);
         this.replyTo = replyTo;
         this.config = config;
@@ -267,7 +267,7 @@ public class DetectionMetricsAggregator extends AbstractBehavior<DetectionMetric
     /************************************* 
      * HELPER CLASSES
      *************************************/
-    public static class DetectionConfig {
+    public static class DetectionMetricsConfig {
         public final ActorRef<BloodPressureReporter.Command> bpReporter;
         public final ActorRef<HeartRateReporter.Command> hrReporter;
         public final ActorRef<SleepReporter.Command> sleepReporter;
@@ -282,7 +282,7 @@ public class DetectionMetricsAggregator extends AbstractBehavior<DetectionMetric
         public final int busyCount;
         public final  int medicalCount;
 
-        public DetectionConfig(
+        public DetectionMetricsConfig(
             ActorRef<BloodPressureReporter.Command> bpReporter,
             ActorRef<HeartRateReporter.Command> hrReporter,
             ActorRef<SleepReporter.Command> sleepReporter,

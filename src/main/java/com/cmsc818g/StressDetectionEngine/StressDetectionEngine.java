@@ -74,7 +74,7 @@ public class StressDetectionEngine extends AbstractBehavior<StressDetectionEngin
         context.getLog().info("context engine actor created");
 
         // TODO: Temporary
-        DetectionConfig config = new DetectionConfig(
+        DetectionMetricsConfig config = new DetectionMetricsConfig(
             null,
             null,
             null,
