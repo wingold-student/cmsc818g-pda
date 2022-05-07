@@ -17,6 +17,7 @@ import akka.actor.typed.javadsl.AbstractBehavior;
 import akka.actor.typed.javadsl.ActorContext;
 import akka.actor.typed.javadsl.Behaviors;
 import akka.actor.typed.javadsl.Receive;
+import akka.actor.typed.pubsub.Topic;
 import akka.http.javadsl.model.DateTime;
 
 
@@ -41,6 +42,21 @@ public class HeartRateReporter extends AbstractBehavior<Reporter.Command> {
 
         public ReadHeartRate(ActorRef<HeartRateReading> replyTo) {
             this.replyTo = replyTo;
+        }
+    }
+    public static final class Subscribe implements Command {
+        final ActorRef<HeartRateReading> subscriber;
+
+        public Subscribe(ActorRef<HeartRateReading> subscriber) {
+            this.subscriber = subscriber;
+        }
+    }
+
+    public static final class Unsubscribe implements Command {
+        final ActorRef<HeartRateReading> subscriber;
+
+        public Unsubscribe(ActorRef<HeartRateReading> subscriber) {
+            this.subscriber = subscriber;
         }
     }
 
@@ -85,6 +101,7 @@ public class HeartRateReporter extends AbstractBehavior<Reporter.Command> {
     private final String databaseURI;
     private final String tableName;
     private Optional<HeartRate> lastReading;
+    private final ActorRef<Topic.Command<HeartRateReading>> hrTopic;
 
     /**
      * Creates a HeartRateReporter.
@@ -99,6 +116,7 @@ public class HeartRateReporter extends AbstractBehavior<Reporter.Command> {
         this.databaseURI = databaseURI;
         this.tableName = tableName;
         this.lastReading = Optional.empty();
+        this.hrTopic = context.spawn(Topic.create(HeartRateReading.class, "hr-topic"), "hr-topic");
     }
 
     /************************************* 
@@ -110,6 +128,8 @@ public class HeartRateReporter extends AbstractBehavior<Reporter.Command> {
         return newReceiveBuilder()
             .onMessage(Reporter.ReadRowOfData.class, this::onReadRowOfData)
             .onMessage(ReadHeartRate.class, this::onReadHeartRate)
+            .onMessage(Subscribe.class, this::onSubscribe)
+            .onMessage(Unsubscribe.class, this::onUnsubscribe)
             .onSignal(PostStop.class, signal -> onPostStop())
             .build();
     }
@@ -157,7 +177,19 @@ public class HeartRateReporter extends AbstractBehavior<Reporter.Command> {
                 // Create the latest reading only if all data is there
                 if (reading.isPresent() && readingTime.isPresent()) {
                     String hr_value = reading.get();
-                    this.lastReading = Optional.of(new HeartRate(readingTime, hr_value));
+                    
+                    // Is immutable, can both lastReading and the topic can have this
+                    HeartRate hr = new HeartRate(readingTime, hr_value);
+                    this.lastReading = Optional.of(hr);
+
+                    // Publish the heartrate out
+                    this.hrTopic.tell(
+                        Topic.publish(
+                            new HeartRateReading(
+                                Optional.of(hr)
+                            )
+                        )
+                    );
                 }
 
                 results.close();
@@ -196,6 +228,18 @@ public class HeartRateReporter extends AbstractBehavior<Reporter.Command> {
         return this;
     }
 
+    private Behavior<Reporter.Command> onSubscribe(Subscribe msg) {
+        getContext().getLog().info("New subscriber added");
+        this.hrTopic.tell(Topic.subscribe(msg.subscriber));
+        return this;
+    }
+
+    private Behavior<Reporter.Command> onUnsubscribe(Unsubscribe msg) {
+        getContext().getLog().info("Actor has unsubscribed");
+        this.hrTopic.tell(Topic.unsubscribe(msg.subscriber));
+        return this;
+    }
+
     /**
      * Could do any necessary cleanup here.
      * 
@@ -218,6 +262,7 @@ public class HeartRateReporter extends AbstractBehavior<Reporter.Command> {
             this.readingTime = readingTime;
             this.heartrate = Integer.parseInt(value);
         }
+
         public int getheartrate(){
             return heartrate;
         }
