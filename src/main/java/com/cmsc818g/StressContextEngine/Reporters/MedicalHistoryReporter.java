@@ -22,9 +22,11 @@ public class MedicalHistoryReporter extends AbstractBehavior<MedicalHistoryRepor
 
     public static final class SendQuery implements Command {
         final String query;
+        final ActorRef<QueryResponse> replyTo;
 
-        public SendQuery (String query) {
+        public SendQuery (String query, ActorRef<QueryResponse> replyTo) {
             this.query = query;
+            this.replyTo = replyTo;
         }
     }
 
@@ -75,9 +77,9 @@ public class MedicalHistoryReporter extends AbstractBehavior<MedicalHistoryRepor
     public interface Response {}
 
     public static final class QueryResponse implements Response {
-        final String results; // TODO: Won't be string
+        public final Optional<String> results; // TODO: Won't be string
 
-        public QueryResponse (String results) {
+        public QueryResponse (Optional<String> results) {
             this.results = results;
         }
     }
