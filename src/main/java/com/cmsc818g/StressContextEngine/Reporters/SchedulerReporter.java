@@ -143,6 +143,21 @@ public class SchedulerReporter extends AbstractBehavior<Reporter.Command> implem
             this.subscriber = subscriber;
         }
     }
+    public static final class SubscribeForUpdates implements Command {
+        final ActorRef<UpdateEventResponse> subscriber;
+
+        public SubscribeForUpdates(ActorRef<UpdateEventResponse> subscriber) {
+            this.subscriber = subscriber;
+        }
+    }
+
+    public static final class UnsubscribeFromUpdates implements Command {
+        final ActorRef<UpdateEventResponse> subscriber;
+
+        public UnsubscribeFromUpdates(ActorRef<UpdateEventResponse> subscriber) {
+            this.subscriber = subscriber;
+        }
+    }
 
     /************************************* 
      * MESSAGES IT SENDS
@@ -154,6 +169,14 @@ public class SchedulerReporter extends AbstractBehavior<Reporter.Command> implem
         final public Optional<CalendarEvent> event;
 
         public CurrentEventResponse(Optional<CalendarEvent> event) {
+            this.event = event;
+        }
+    }
+
+    public static final class UpdateEventResponse implements Response {
+        final public UpdateEvent event;
+
+        public UpdateEventResponse(UpdateEvent event) {
             this.event = event;
         }
     }
@@ -444,5 +467,9 @@ public class SchedulerReporter extends AbstractBehavior<Reporter.Command> implem
             this.length = length;
             this.calendarType = calendarType;
         }
+    }
+
+    public class UpdateEvent {
+        
     }
 }
