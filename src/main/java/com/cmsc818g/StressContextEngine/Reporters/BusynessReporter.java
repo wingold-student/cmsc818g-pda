@@ -55,15 +55,22 @@ public class BusynessReporter extends AbstractBehavior<Reporter.Command> {
             this.replyTo = replyTo;
         }
     }
+    public static final class GetCurrentBusynessLevel implements Command {
+        final ActorRef<BusynessLevelResponse> replyTo;
+
+        public GetCurrentBusynessLevel(ActorRef<BusynessLevelResponse> replyTo) {
+            this.replyTo = replyTo;
+        }
+    }
 
     /************************************* 
      * MESSAGES IT SENDS
      *************************************/
     
     public static final class BusynessLevelResponse {
-        final Float busynessLevel;
+        public final Optional<BusynessReading> busynessLevel;
 
-        public BusynessLevelResponse(Float busynessLevel) {
+        public BusynessLevelResponse(Optional<BusynessReading> busynessLevel) {
             this.busynessLevel = busynessLevel;
         }
     }
@@ -99,6 +106,7 @@ public class BusynessReporter extends AbstractBehavior<Reporter.Command> {
     private ActorRef<Reporter.Command> schedulerReporter;
     private ActorRef<SchedulerReporter.Response> schedulerAdapter;
     private ActorRef<SchedulerReporter.UpdateEventResponse> updateEventAdapter;
+    private Optional<BusynessReading> lastReading;
 
     public BusynessReporter(ActorContext<Reporter.Command> context, ActorRef<Reporter.Command> schedulerReporter) {
         super(context);
@@ -119,6 +127,7 @@ public class BusynessReporter extends AbstractBehavior<Reporter.Command> {
         return newReceiveBuilder()
             .onMessage(Reporter.ReadRowOfData.class, this::onReadRowOfData)
             .onMessage(GetBusynessLevel.class, this::onGetBusynessLevel)
+            .onMessage(GetCurrentBusynessLevel.class, this::onGetCurrentBusynessLevel)
             .onMessage(WrappedSchedulerResponse.class, this::onWrappedSchedulerResponse)
             .onMessage(WrappedUpdateEventResponse.class, this::onWrappedUpdateEventResponse)
             .onMessage(GracefulShutdown.class, this::onGracefulShutdown)
@@ -132,6 +141,11 @@ public class BusynessReporter extends AbstractBehavior<Reporter.Command> {
     }
 
     private Behavior<Reporter.Command> onGetBusynessLevel(GetBusynessLevel msg) {
+        return this;
+    }
+
+    private Behavior<Reporter.Command> onGetCurrentBusynessLevel(GetCurrentBusynessLevel msg) {
+        msg.replyTo.tell(new BusynessLevelResponse(this.lastReading));
         return this;
     }
 
@@ -166,6 +180,10 @@ public class BusynessReporter extends AbstractBehavior<Reporter.Command> {
 
     private void UnsubscribeFromScheduler() {
 
+    }
+
+    public class BusynessReading {
+        public int level;
     }
 
 }
