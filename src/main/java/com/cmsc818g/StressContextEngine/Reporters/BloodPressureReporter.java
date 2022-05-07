@@ -175,8 +175,14 @@ public class BloodPressureReporter extends AbstractBehavior<Reporter.Command> {
                 // Create the latest reading only if all data is there
                 if (reading.isPresent() && readingTime.isPresent()) {
                     String[] high_low = reading.get().split("/");
-                    this.lastReading = Optional.of(new BloodPressure(readingTime, high_low[0], high_low[1]));
-                    this.bpTopic.tell(Topic.publish(new BloodPressureReading(this.lastReading)));
+
+                    // BloodPressure is immutable, so both last reading and the topic can have it
+                    BloodPressure bp = new BloodPressure(readingTime, high_low[0], high_low[1]);
+
+                    this.lastReading = Optional.of(bp);
+                    this.bpTopic.tell(Topic.publish(
+                        new BloodPressureReading(Optional.of(bp))
+                    ));
                 }
 
                 results.close();
