@@ -34,6 +34,13 @@ public class BusynessReporter extends AbstractBehavior<Reporter.Command> {
         public GracefulShutdown() {}
     }
 
+    public static final class AdaptedSchedulerUpdateEvent implements Command {
+        final SchedulerReporter.UpdateEventResponse event;
+
+        public AdaptedSchedulerUpdateEvent(SchedulerReporter.UpdateEventResponse event) {
+            this.event = event;
+        }
+    }
 
     public static final class GetBusynessLevel implements Command {
         final DateTime start;
@@ -73,6 +80,14 @@ public class BusynessReporter extends AbstractBehavior<Reporter.Command> {
         }
     }
 
+    public static final class WrappedUpdateEventResponse implements Command {
+        final SchedulerReporter.UpdateEventResponse response;
+
+        public WrappedUpdateEventResponse(SchedulerReporter.UpdateEventResponse response) {
+            this.response = response;
+        }
+    }
+
     /************************************* 
      * CREATION 
      *************************************/
@@ -83,11 +98,16 @@ public class BusynessReporter extends AbstractBehavior<Reporter.Command> {
 
     private ActorRef<Reporter.Command> schedulerReporter;
     private ActorRef<SchedulerReporter.Response> schedulerAdapter;
+    private ActorRef<SchedulerReporter.UpdateEventResponse> updateEventAdapter;
 
     public BusynessReporter(ActorContext<Reporter.Command> context, ActorRef<Reporter.Command> schedulerReporter) {
         super(context);
         this.schedulerReporter = schedulerReporter;
+
         this.schedulerAdapter = context.messageAdapter(SchedulerReporter.Response.class, WrappedSchedulerResponse::new);
+        this.updateEventAdapter = context.messageAdapter(SchedulerReporter.UpdateEventResponse.class, WrappedUpdateEventResponse::new);
+
+        this.schedulerReporter.tell(new SchedulerReporter.SubscribeForUpdates(this.updateEventAdapter));
     }
 
     /************************************* 
@@ -98,10 +118,9 @@ public class BusynessReporter extends AbstractBehavior<Reporter.Command> {
     public Receive<Reporter.Command> createReceive() {
         return newReceiveBuilder()
             .onMessage(Reporter.ReadRowOfData.class, this::onReadRowOfData)
-            .onMessage(StartListening.class, this::onStartListening)
-            .onMessage(StopListening.class, this::onStopListening)
             .onMessage(GetBusynessLevel.class, this::onGetBusynessLevel)
             .onMessage(WrappedSchedulerResponse.class, this::onWrappedSchedulerResponse)
+            .onMessage(WrappedUpdateEventResponse.class, this::onWrappedUpdateEventResponse)
             .onMessage(GracefulShutdown.class, this::onGracefulShutdown)
             .onSignal(PostStop.class, signal -> onPostStop())
             .build();
@@ -109,15 +128,6 @@ public class BusynessReporter extends AbstractBehavior<Reporter.Command> {
 
     private Behavior<Reporter.Command> onReadRowOfData(Reporter.ReadRowOfData msg) {
         msg.replyTo.tell(new Reporter.StatusOfRead(true, "I did nothing...", getContext().getSelf().path()));
-        return this;
-    }
-
-    private Behavior<Reporter.Command> onStartListening(StartListening msg) {
-        schedulerReporter.tell(new SchedulerReporter.SubscribeForNewEvents(schedulerAdapter));
-        return this;
-    }
-
-    private Behavior<Reporter.Command> onStopListening(StopListening msg) {
         return this;
     }
 
@@ -133,6 +143,15 @@ public class BusynessReporter extends AbstractBehavior<Reporter.Command> {
         } else if (response instanceof SchedulerReporter.ResponseEventsInRange) {
             SchedulerReporter.ResponseEventsInRange rsp = (SchedulerReporter.ResponseEventsInRange) response;
         }
+        return this;
+    }
+
+    // TODO: Needs to actually do something with the event
+    private Behavior<Reporter.Command> onWrappedUpdateEventResponse(WrappedUpdateEventResponse wrapped) {
+        SchedulerReporter.UpdateEventResponse response = wrapped.response;
+        SchedulerReporter.UpdateEvent event = response.event;
+
+        getContext().getLog().info("Received schedule update");
         return this;
     }
 
