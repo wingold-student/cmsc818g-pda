@@ -54,26 +54,27 @@ public class WebRoutes {
 
     // Manages the routes the server will handle and what to do
     public Route webRoutes() {
-        return concat(
-            path("", () ->
-                getFromResource("web/test.html")
-            ),
-            path("hello", () ->
-                get(() ->
-                    complete("Hello world!")
-                )
-            ),
-            path("actor", () ->
-                get(() ->
-                respondWithHeader(RawHeader.create("Access-Control-Allow-Origin", "*"), () -> 
-                    onSuccess(getTestJSON(),
-                        data -> complete(StatusCodes.OK, data, Jackson.marshaller()))
+        return respondWithDefaultHeader(RawHeader.create("Access-Control-Allow-Origin", "*"), () ->
+            concat(
+                path("", () ->
+                    getFromResource("web/test.html")
+                ),
+                path("hello", () ->
+                    get(() ->
+                        complete("Hello world!")
                     )
-                )
-            ),
-            path("sse", () ->
-                get(() -> 
-                    completeOK(Source.from(this.events), EventStreamMarshalling.toEventStream())
+                ),
+                path("actor", () ->
+                    get(() ->
+                        onSuccess(getTestJSON(),
+                            data -> complete(StatusCodes.OK, data, Jackson.marshaller())
+                        )
+                    )
+                ),
+                path("sse", () ->
+                    get(() -> 
+                        completeOK(Source.from(this.events), EventStreamMarshalling.toEventStream())
+                    )
                 )
             )
         );
