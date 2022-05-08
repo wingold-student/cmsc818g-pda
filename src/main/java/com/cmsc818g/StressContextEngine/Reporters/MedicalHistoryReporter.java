@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.Optional;
 
 import com.cmsc818g.Utilities.SQLiteHandler;
+import com.cmsc818g.Utilities.SQLiteHandler.StatusOfRead;
 
 import akka.actor.typed.ActorRef;
 import akka.actor.typed.Behavior;
@@ -154,6 +155,7 @@ public class MedicalHistoryReporter extends Reporter {
 
     protected Behavior<Reporter.Command> onReadRowOfData(Reporter.ReadRowOfData msg) throws ClassNotFoundException, SQLException {
         // TODO: Doing nothing since no data at the moment
+        msg.replyTo.tell(new StatusOfRead(true, "Medical did nothing", getContext().getSelf().path()));
         return this;
     }
     private MedicalHistoryReporter onPostStop() {

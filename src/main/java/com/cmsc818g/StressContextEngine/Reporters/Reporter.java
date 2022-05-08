@@ -66,7 +66,7 @@ public abstract class Reporter extends AbstractBehavior<Reporter.Command> {
     private final int readRate;
     private final String timerName;
     private final TimerScheduler<Command> timers;
-    private int currentRow;
+    protected int currentRow;
     private final ActorRef<SQLiteHandler.StatusOfRead> statusListener;
 
     public Reporter(
@@ -88,15 +88,16 @@ public abstract class Reporter extends AbstractBehavior<Reporter.Command> {
         this.tableName = tableName;
         this.readRate = readRate;
 
-        this.currentRow = 0;
+        this.currentRow = 1;
     }
     
     protected Behavior<Reporter.Command> onStartReading(StartReading msg) {
-        this.currentRow = 0;
-        int copyOfRow = currentRow;
+        this.currentRow = 1;
+        // int copyOfRow = currentRow;
 
+        getContext().getLog().info("Starting periodic reads of data");
         timers.startTimerAtFixedRate(this.timerName,
-                                    new Reporter.ReadRowOfData(copyOfRow, this.statusListener),
+                                    new Reporter.ReadRowOfData(this.currentRow, this.statusListener),
                                     Duration.ofSeconds(readRate));
         return this;
     }
@@ -107,35 +108,37 @@ public abstract class Reporter extends AbstractBehavior<Reporter.Command> {
         return this;
     }
 
-    protected ResultSet queryDB(List<String> columnHeaders, ActorPath actorPath, int rowNumber) throws ClassNotFoundException, SQLException {
+    protected QueryResponse queryDB(List<String> columnHeaders, ActorPath actorPath, int rowNumber) throws ClassNotFoundException, SQLException {
         String headers = String.join(", ", columnHeaders);
-        String sql = String.format("SELECT {} FROM {} WHERE id = ?", headers, tableName);
+        String sql = String.format("SELECT %s FROM %s WHERE id = ?", headers, tableName);
 
-        ResultSet results = null;
-        Connection conn = null;
+        QueryResponse response = new QueryResponse();
 
         try {
-            conn = SQLiteHandler.connectToDB(databaseURI, statusListener, actorPath);
-            PreparedStatement statement = conn.prepareStatement(sql);
-            statement.setInt(1, rowNumber);
-            results = SQLiteHandler.queryDB(databaseURI, statement, statusListener, actorPath);
+            response.conn = SQLiteHandler.connectToDB(databaseURI, statusListener, actorPath);
+            response.statement = response.conn.prepareStatement(sql);
+            response.statement.setInt(1, rowNumber);
+            response.results = SQLiteHandler.queryDB(databaseURI, response.statement, statusListener, actorPath);
         } catch (ClassNotFoundException e) {
             String errorStr = "Failed find the SQLite drivers";
             getContext().getLog().error(errorStr, e);
             getContext().getSelf().tell(StopReading.INSTANCE);
             throw e;
         } catch(SQLException e) {
-            String errorStr = String.format("Failed to execute SQL query {} on row {} from actor {}", sql, rowNumber, actorPath);
+            String errorStr = String.format("Failed to execute SQL query %s on row %d from actor %s", sql, rowNumber, actorPath);
             getContext().getLog().error(errorStr, e);
             getContext().getSelf().tell(StopReading.INSTANCE);
             throw e;
-        } finally {
-            if (conn != null)
-                conn.close();
         }
 
-        return results;
+        return response;
     }
 
     protected abstract Behavior<Reporter.Command> onReadRowOfData(ReadRowOfData msg)  throws ClassNotFoundException, SQLException;
+
+    protected class QueryResponse {
+        public Connection conn;
+        public PreparedStatement statement;
+        public ResultSet results;
+    }
 }

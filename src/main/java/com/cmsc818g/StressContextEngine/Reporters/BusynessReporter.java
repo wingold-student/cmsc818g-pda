@@ -174,7 +174,11 @@ public class BusynessReporter extends Reporter {
             "busyness"
         );
 
-        ResultSet results = queryDB(columnHeaders, myPath, msg.rowNumber);
+        ResultSet results = null;
+        QueryResponse response = queryDB(columnHeaders, myPath, msg.rowNumber);
+
+        if (response.results != null)
+             results = response.results;
 
         if (results != null && results.next()) {
             Optional<Integer> busyLevel = Optional.ofNullable(results.getInt("busyness"));
@@ -183,6 +187,7 @@ public class BusynessReporter extends Reporter {
                 BusynessReading reading = new BusynessReading(busyLevel);
                 this.lastReading = Optional.of(reading);
                 msg.replyTo.tell(new SQLiteHandler.StatusOfRead(true, "Succesfully read row " + msg.rowNumber, myPath));
+                this.currentRow++;
             } else {
                 this.lastReading = Optional.empty();
             }
@@ -192,8 +197,16 @@ public class BusynessReporter extends Reporter {
             msg.replyTo.tell(new SQLiteHandler.StatusOfRead(false, "No results from row " + msg.rowNumber, myPath));
         }
 
-        if (results != null)
-            results.close();
+        if (response != null) {
+            if (response.conn != null)
+                response.conn.close();
+            
+            if (response.statement != null)
+                response.statement.close();
+
+            if (results != null)
+                results.close();
+        }
 
         return this;
     }

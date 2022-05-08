@@ -101,6 +101,7 @@ public class BloodPressureReporter extends Reporter {
 
     private Optional<BloodPressure> lastReading;
     private final ActorRef<Topic.Command<BloodPressureReading>> bpTopic;
+    private int subscriberCount = 0;
 
     /**
      * Creates a BloodPressureReporter.
@@ -150,20 +151,24 @@ public class BloodPressureReporter extends Reporter {
      * @throws Exception
      */
     protected Behavior<Reporter.Command> onReadRowOfData(Reporter.ReadRowOfData msg) throws ClassNotFoundException, SQLException {
+        getContext().getLog().info("Reading row of data " + msg.rowNumber);
         ActorPath myPath = getContext().getSelf().path();
 
         // Query itself with variables to be filled
         List<String> columnHeaders = List.of(
             "id",
             "time",
-            "bp-systolic",
-            "bp-diastolic"
+            "`bp-systolic`",
+            "`bp-diastolic`"
         );
 
-        ResultSet results = queryDB(columnHeaders, myPath, msg.rowNumber);
+        ResultSet results = null;
+        QueryResponse response = queryDB(columnHeaders, myPath, msg.rowNumber);
 
-        if (results != null && results.next()) {
+        if (response != null)
+            results = response.results;
 
+        if (response != null && results != null && results.next()) {
             // The cell in the database can be empty/null
             Optional<Integer> systolic = Optional.ofNullable(results.getInt("bp-systolic"));
             Optional<Integer> diastolic = Optional.ofNullable(results.getInt("bp-diastolic"));
@@ -178,12 +183,16 @@ public class BloodPressureReporter extends Reporter {
                 BloodPressure bp = new BloodPressure(readingTime, systolic.get(), diastolic.get());
 
                 this.lastReading = Optional.of(bp);
-                this.bpTopic.tell(Topic.publish(
-                    new BloodPressureReading(Optional.of(bp))
-                ));
+
+                if (subscriberCount > 0) {
+                    this.bpTopic.tell(Topic.publish(
+                        new BloodPressureReading(Optional.of(bp))
+                    ));
+                }
 
                 // Tell the Context Engine we've successfully read
                 msg.replyTo.tell(new SQLiteHandler.StatusOfRead(true, "Succesfully read row " + msg.rowNumber, myPath));
+                this.currentRow++;
             } else {
                 this.lastReading = Optional.empty();
             }
@@ -194,8 +203,16 @@ public class BloodPressureReporter extends Reporter {
             msg.replyTo.tell(new SQLiteHandler.StatusOfRead(false, "No results from row " + msg.rowNumber, myPath));
         }
 
-        if (results != null)
-            results.close();
+        if (response != null) {
+            if (response.conn != null)
+                response.conn.close();
+            
+            if (response.statement != null)
+                response.statement.close();
+
+            if (results != null)
+                results.close();
+        }
             
         return this;
     }
@@ -213,12 +230,14 @@ public class BloodPressureReporter extends Reporter {
     private Behavior<Reporter.Command> onSubscribe(Subscribe msg) {
         getContext().getLog().info("New subscriber added");
         this.bpTopic.tell(Topic.subscribe(msg.subscriber));
+        subscriberCount++;
         return this;
     }
 
     private Behavior<Reporter.Command> onUnsubscribe(Unsubscribe msg) {
         getContext().getLog().info("Actor has unsubscribed");
         this.bpTopic.tell(Topic.unsubscribe(msg.subscriber));
+        subscriberCount--;
         return this;
     }
 

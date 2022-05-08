@@ -351,22 +351,32 @@ public class SchedulerReporter extends Reporter {
         List<String> columnHeaders = List.of(
             "id",
             "time",
+            "date",
+            "tag",
             "event"
         );
 
-        ResultSet results = queryDB(columnHeaders, myPath, msg.rowNumber);
+        ResultSet results = null;
+        QueryResponse response = queryDB(columnHeaders, myPath, msg.rowNumber);
+
+        if (response != null)
+            results = response.results;
 
         if (results != null && results.next()) {
-            Optional<String> eventName = Optional.ofNullable(results.getString("Schedule"));
-            String dateTimeStr = results.getString("DateTime");
+            Optional<String> eventName = Optional.ofNullable(results.getString("event"));
+            String time = results.getString("time");
+            String date = results.getString("date");
+            String dateTimeStr = String.format("%sT%s", date, time);
             Optional<DateTime> eventTime = DateTime.fromIsoDateTimeString(dateTimeStr);
+
+            String calendarType = results.getString("tag");
 
             if (eventName.isPresent() && eventTime.isPresent()) {
                 Duration tmpDuration = Duration.ofMinutes(30L); // TODO: TEMPORARY
                 Optional.of(Duration.ofDays(1));
 
                 // Can share event because it is immutable
-                CalendarEvent event = new CalendarEvent(eventName.get(), eventTime.get(), tmpDuration, "");
+                CalendarEvent event = new CalendarEvent(eventName.get(), eventTime.get(), tmpDuration, calendarType); 
 
                 this.curEvent = Optional.of(event);
                 this.curEventTopic.tell(Topic.publish(
@@ -374,6 +384,7 @@ public class SchedulerReporter extends Reporter {
                 ));
 
                 msg.replyTo.tell(new SQLiteHandler.StatusOfRead(true, "Succesfully read row " + msg.rowNumber, myPath));
+                this.currentRow++;
             } else {
                 this.curEvent = Optional.empty();
             }
@@ -383,8 +394,16 @@ public class SchedulerReporter extends Reporter {
             msg.replyTo.tell(new SQLiteHandler.StatusOfRead(false, "No results from row " + msg.rowNumber, myPath));
         }
 
-        if (results != null)
-            results.close();
+        if (response != null) {
+            if (response.conn != null)
+                response.conn.close();
+            
+            if (response.statement != null)
+                response.statement.close();
+
+            if (results != null)
+                results.close();
+        }
             
         return this;
     }
@@ -414,7 +433,7 @@ public class SchedulerReporter extends Reporter {
      * (Meaning this will fail upon a second AddToSchedule message)
      */
     private Behavior<Reporter.Command> onAddToSchedule(AddToSchedule msg) {
-        Optional<Boolean> isFree = this.IsFreeAt(msg.event.time);
+        Optional<Boolean> isFree = this.IsFreeAt(msg.event.datetime);
         boolean addedEvent = !isFree.isEmpty() && isFree.get();
 
         if (addedEvent) {
@@ -470,13 +489,13 @@ public class SchedulerReporter extends Reporter {
     }
     public class CalendarEvent {
         final String eventName;
-        final DateTime time;
+        final DateTime datetime;
         final Duration length;
         final String calendarType;
 
-        public CalendarEvent(String eventName, DateTime time, Duration length, String calendarType) {
+        public CalendarEvent(String eventName, DateTime datetime, Duration length, String calendarType) {
             this.eventName = eventName;
-            this.time = time;
+            this.datetime = datetime;
             this.length = length;
             this.calendarType = calendarType;
         }

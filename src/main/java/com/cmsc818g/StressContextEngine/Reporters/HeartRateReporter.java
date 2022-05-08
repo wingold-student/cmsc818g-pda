@@ -107,6 +107,7 @@ public class HeartRateReporter extends Reporter {
     private static final String periodicTimerName = "hr-periodic";
     private Optional<HeartRate> lastReading;
     private final ActorRef<Topic.Command<HeartRateReading>> hrTopic;
+    private int subscriberCount = 0;
 
     /**
      * Creates a HeartRateReporter.
@@ -162,17 +163,21 @@ public class HeartRateReporter extends Reporter {
         List<String> columnHeaders = List.of(
             "id",
             "time",
-            "heart-rate"
+            "`heart-rate`"
         );
 
-        ResultSet results = queryDB(columnHeaders, myPath, msg.rowNumber);
+        ResultSet results = null;
+        QueryResponse response = queryDB(columnHeaders, myPath, msg.rowNumber);
+        
+        if (response != null)
+            results = response.results;
 
         // Need to call `.next()` as the iterator starts before the data
         // If no data, then it will return null
         if (results != null && results.next()) {
 
             // The cell in the database can be empty/null
-            Optional<Integer> reading = Optional.ofNullable(results.getInt("heart-beat"));
+            Optional<Integer> reading = Optional.ofNullable(results.getInt("heart-rate"));
 
             // Not expecting DateTime to not exist though, so can just get it
             Optional<String> readingTime = Optional.ofNullable(results.getString("time"));
@@ -189,15 +194,19 @@ public class HeartRateReporter extends Reporter {
                 this.lastReading = Optional.of(hr);
 
                 // Publish the heartrate out
-                this.hrTopic.tell(
-                    Topic.publish(
-                        new HeartRateReading(
-                            Optional.of(hr)
+                if (subscriberCount > 0) {
+                    this.hrTopic.tell(
+                        Topic.publish(
+                            new HeartRateReading(
+                                Optional.of(hr)
+                            )
                         )
-                    )
-                );
+                    );
+                }
                 // Tell the Context Engine we've successfully read
                 msg.replyTo.tell(new SQLiteHandler.StatusOfRead(true, "Succesfully read row " + msg.rowNumber, myPath));
+
+                this.currentRow++;
             } else {
                 this.lastReading = Optional.empty();
             }
@@ -209,8 +218,16 @@ public class HeartRateReporter extends Reporter {
             msg.replyTo.tell(new SQLiteHandler.StatusOfRead(false, "No results from row " + msg.rowNumber, myPath));
         }
 
-        if (results != null)
-            results.close();
+        if (response != null) {
+            if (response.conn != null)
+                response.conn.close();
+            
+            if (response.statement != null)
+                response.statement.close();
+
+            if (results != null)
+                results.close();
+        }
 
         return this;
     }
@@ -228,12 +245,14 @@ public class HeartRateReporter extends Reporter {
     private Behavior<Reporter.Command> onSubscribe(Subscribe msg) {
         getContext().getLog().info("New subscriber added");
         this.hrTopic.tell(Topic.subscribe(msg.subscriber));
+        subscriberCount++;
         return this;
     }
 
     private Behavior<Reporter.Command> onUnsubscribe(Unsubscribe msg) {
         getContext().getLog().info("Actor has unsubscribed");
         this.hrTopic.tell(Topic.unsubscribe(msg.subscriber));
+        subscriberCount--;
         return this;
     }
 
