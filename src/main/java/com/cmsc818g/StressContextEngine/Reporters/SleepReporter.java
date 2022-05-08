@@ -1,28 +1,25 @@
 package com.cmsc818g.StressContextEngine.Reporters;
 
-import java.sql.Connection;
-import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.List;
 import java.util.Optional;
 
-import org.slf4j.Logger;
 
-import com.cmsc818g.StressRecommendationEngine.StressRecommendationEngine;
-import com.cmsc818g.StressDetectionEngine.StressDetectionEngine;
+import com.cmsc818g.Utilities.SQLiteHandler;
 
 import akka.actor.ActorPath;
 import akka.actor.typed.SupervisorStrategy;
 import akka.actor.typed.ActorRef;
 import akka.actor.typed.Behavior;
 import akka.actor.typed.PostStop;
-import akka.actor.typed.javadsl.AbstractBehavior;
 import akka.actor.typed.javadsl.ActorContext;
 import akka.actor.typed.javadsl.Behaviors;
 import akka.actor.typed.javadsl.Receive;
-import akka.http.javadsl.model.DateTime;
+import akka.actor.typed.javadsl.TimerScheduler;
+import akka.actor.typed.pubsub.Topic;
 
-public class SleepReporter extends AbstractBehavior<Reporter.Command>{
+public class SleepReporter extends Reporter {
 
    /************************************* 
      * MESSAGES IT RECEIVES 
@@ -35,6 +32,21 @@ public class SleepReporter extends AbstractBehavior<Reporter.Command>{
 
         public ReadSleepHours(ActorRef<SleepHoursReading> replyTo) {
             this.replyTo = replyTo;
+        }
+    }
+    public static final class Subscribe implements Command {
+        final ActorRef<SleepHoursReading> subscriber;
+
+        public Subscribe(ActorRef<SleepHoursReading> subscriber) {
+            this.subscriber = subscriber;
+        }
+    }
+
+    public static final class Unsubscribe implements Command {
+        final ActorRef<SleepHoursReading> subscriber;
+
+        public Unsubscribe(ActorRef<SleepHoursReading> subscriber) {
+            this.subscriber = subscriber;
         }
     }
 
@@ -68,17 +80,29 @@ public class SleepReporter extends AbstractBehavior<Reporter.Command>{
      * @param tableName Name of the table it should read from in the database
      * @return Behavior that it will take Reporter.Commands (or BloodPressureReporter.Commands)
      */
-    public static Behavior<Reporter.Command> create(String databaseURI, String tableName) {
+    public static Behavior<Reporter.Command> create(ActorRef<SQLiteHandler.StatusOfRead> statusListener,
+                                                    String databaseURI,
+                                                    String tableName,
+                                                    int readRate)
+    {
         return Behaviors.<Reporter.Command>supervise(
             Behaviors.setup(
-                context -> new SleepReporter(context, databaseURI, tableName)
+                context -> 
+                Behaviors.withTimers(
+                    timers -> new SleepReporter(context,
+                                                timers,
+                                                statusListener,
+                                                databaseURI,
+                                                tableName,
+                                                readRate)
+                )
             )
         ).onFailure(SQLException.class, SupervisorStrategy.resume());
     }
 
-    private final String databaseURI;
-    private final String tableName;
+    private static final String periodicTimerName = "sleep-periodic";
     private Optional<SleepHours> lastReading;
+    private final ActorRef<Topic.Command<SleepHoursReading>> sleepTopic;
 
     /**
      * Creates a BloodPressureReporter.
@@ -88,11 +112,16 @@ public class SleepReporter extends AbstractBehavior<Reporter.Command>{
      * @param databaseURI URI to the database to read from for blood pressure
      * @param tableName Table in the database to use
      */
-    private SleepReporter(ActorContext<Reporter.Command> context, String databaseURI, String tableName) {
-        super(context);
-        this.databaseURI = databaseURI;
-        this.tableName = tableName;
+    private SleepReporter(ActorContext<Reporter.Command> context,
+                        TimerScheduler<Reporter.Command> timers,
+                        ActorRef<SQLiteHandler.StatusOfRead> statusListener,
+                        String databaseURI,
+                        String tableName,
+                        int readRate)
+    {
+        super(context, timers, periodicTimerName, statusListener, databaseURI, tableName, readRate);
         this.lastReading = Optional.empty();
+        this.sleepTopic = context.spawn(Topic.create(SleepHoursReading.class, "sleep-topic"), "sleep-topic");
     }
 
     /************************************* 
@@ -104,6 +133,10 @@ public class SleepReporter extends AbstractBehavior<Reporter.Command>{
         return newReceiveBuilder()
             .onMessage(Reporter.ReadRowOfData.class, this::onReadRowOfData)
             .onMessage(ReadSleepHours.class, this::onReadSleepHours)
+            .onMessage(Subscribe.class, this::onSubscribe)
+            .onMessage(Unsubscribe.class, this::onUnsubscribe)
+            .onMessage(StartReading.class, this::onStartReading)
+            .onMessage(StopReading.class, this::onStopReading)
             .onSignal(PostStop.class, signal -> onPostStop())
             .build();
     }
@@ -116,66 +149,54 @@ public class SleepReporter extends AbstractBehavior<Reporter.Command>{
      * @throws ClassNotFoundException if the SQL driver cannot be loaded/found
      * @throws SQLException if there is an issue with SQL query/database
      */
-    private Behavior<Reporter.Command> onReadRowOfData(Reporter.ReadRowOfData msg) throws ClassNotFoundException, SQLException {
+    protected Behavior<Reporter.Command> onReadRowOfData(Reporter.ReadRowOfData msg) throws ClassNotFoundException, SQLException {
         // Used for messages later
-        Logger logger = getContext().getLog();
         ActorPath myPath = getContext().getSelf().path();
 
-        // Forms a connection to the database
-        Connection conn = Reporter.connectToDB(this.databaseURI, logger, msg.replyTo, myPath);
+        List<String> columnHeaders = List.of(
+            "id",
+            "time",
+            "sleep"
+        );
 
-        try {
-            // Query itself with variables to be filled
-            String query = "SELECT id, DateTime, SleepHour FROM " + this.tableName + " WHERE id = ?";
+        ResultSet results = queryDB(columnHeaders, myPath, msg.rowNumber);
 
-            // Form a statement and fill in the variables
-            PreparedStatement statement;
-            statement = conn.prepareStatement(query);
-            statement.setInt(1, msg.rowNumber); // `id` is the only variable ( ? )
+        // Need to call `.next()` as the iterator starts before the data
+        // If no data, then it will return null
+        if (results != null && results.next()) {
 
-            ResultSet results = Reporter.queryDB(this.databaseURI, statement, logger, msg.replyTo, myPath);
+            // The cell in the database can be empty/null
+            Optional<Integer> reading = Optional.ofNullable(results.getInt("sleep"));
 
-            // Need to call `.next()` as the iterator starts before the data
-            // If no data, then it will return null
-            if (results.next()) {
+            // Not expecting DateTime to not exist though, so can just get it
+            Optional<String> readingTime = Optional.ofNullable(results.getString("time"));
 
-                // The cell in the database can be empty/null
-                Optional<String> reading = Optional.ofNullable(results.getString("Sleephours"));
+            // Create the latest reading only if all data is there
+            if (reading.isPresent()) {
 
-                // Not expecting DateTime to not exist though, so can just get it
-                String dateTimeStr = results.getString("DateTime");
+                // Can share because it is immutable
+                SleepHours sleepValue = new SleepHours(readingTime, reading.get());
 
-                // Convert into DateTime, could fail, hence `Optional`
-                Optional<DateTime> readingTime = DateTime.fromIsoDateTimeString(dateTimeStr);
-
-                // Create the latest reading only if all data is there
-                if (reading.isPresent() && readingTime.isPresent()) {
-                    String[] high_low = reading.get().split("/");
-                    this.lastReading = Optional.of(new SleepHours(readingTime, high_low[0], high_low[1]));
-                }
-
-                results.close();
-
+                this.lastReading = Optional.of(sleepValue);
+                /*
+                this.sleepTopic.tell(Topic.publish(
+                    new SleepHoursReading(Optional.of(sleepValue))
+                ));
+                */
                 // Tell the Context Engine we've successfully read
-                msg.replyTo.tell(new Reporter.StatusOfRead(true, "Succesfully read row " + msg.rowNumber, myPath));
-                
+                msg.replyTo.tell(new SQLiteHandler.StatusOfRead(true, "Succesfully read row " + msg.rowNumber, myPath));
             } else {
-
-                // Tell the Context Engine we had a problem
-                msg.replyTo.tell(new Reporter.StatusOfRead(false, "No results from row " + msg.rowNumber, myPath));
+                this.lastReading = Optional.empty();
             }
             
-        conn.close();
-
-        } catch (SQLException e) {
+        } else {
+            this.lastReading = Optional.empty();
             // Tell the Context Engine we had a problem
-            String errorMsg = "Failed to prepare statement";
-            msg.replyTo.tell(new Reporter.StatusOfRead(false, errorMsg, myPath));
-
-            // Throwing it because it'll log this way. And we could handle differently
-            // later if we want
-            throw e;
+            msg.replyTo.tell(new SQLiteHandler.StatusOfRead(false, "No results from row " + msg.rowNumber, myPath));
         }
+            
+        if (results != null)
+            results.close();
 
         return this;
     }
@@ -189,6 +210,19 @@ public class SleepReporter extends AbstractBehavior<Reporter.Command>{
         msg.replyTo.tell(new SleepHoursReading(this.lastReading));
         return this;
     }
+
+    private Behavior<Reporter.Command> onSubscribe(Subscribe msg) {
+        getContext().getLog().info("New subscriber added");
+        this.sleepTopic.tell(Topic.subscribe(msg.subscriber));
+        return this;
+    }
+
+    private Behavior<Reporter.Command> onUnsubscribe(Unsubscribe msg) {
+        getContext().getLog().info("Actor has unsubscribed");
+        this.sleepTopic.tell(Topic.unsubscribe(msg.subscriber));
+        return this;
+    }
+
 
     /**
      * Could do any necessary cleanup here.
@@ -205,20 +239,12 @@ public class SleepReporter extends AbstractBehavior<Reporter.Command>{
      * HELPER CLASSES
      *************************************/
     public class SleepHours {
-        final Optional<DateTime> readingTime;
-        final int systolic;
-        final int diastolic;
+        final Optional<String> readingTime;
+        final int sleep;
 
-        public SleepHours(Optional<DateTime> readingTime, String upper, String lower) {
+        public SleepHours(Optional<String> readingTime, int sleep) {
             this.readingTime = readingTime;
-            this.systolic = Integer.parseInt(upper);
-            this.diastolic = Integer.parseInt(lower);
-        }
-        public int getSystolicBP(){
-            return systolic;
-        }
-        public int getDiastolicBP(){
-            return diastolic;
+            this.sleep = sleep;
         }
     }
 

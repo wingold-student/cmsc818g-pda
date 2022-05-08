@@ -1,0 +1,7 @@
+detectionMetricsCounts:
+  hrCount: 1
+  bpCount: 1
+  sleepCount: 1
+  locCount: 1
+  busyCount: 1
+  medicalCount: 0

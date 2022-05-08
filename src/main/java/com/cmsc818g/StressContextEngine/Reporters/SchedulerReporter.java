@@ -1,33 +1,30 @@
 package com.cmsc818g.StressContextEngine.Reporters;
 
-import java.sql.Connection;
-import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Duration;
 import java.time.format.DateTimeParseException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Optional;
 
 import com.cmsc818g.StressEntityManager.Entities.CalendarCommand;
+import com.cmsc818g.Utilities.SQLiteHandler;
 
-import org.slf4j.Logger;
-
-import akka.Done;
 import akka.actor.ActorPath;
 import akka.actor.typed.ActorRef;
 import akka.actor.typed.Behavior;
 import akka.actor.typed.PostStop;
 import akka.actor.typed.SupervisorStrategy;
-import akka.actor.typed.javadsl.AbstractBehavior;
 import akka.actor.typed.javadsl.ActorContext;
 import akka.actor.typed.javadsl.Behaviors;
 import akka.actor.typed.javadsl.Receive;
+import akka.actor.typed.javadsl.TimerScheduler;
+import akka.actor.typed.pubsub.Topic;
 import akka.http.javadsl.model.DateTime;
-import akka.pattern.StatusReply;
 
 // AbstractBehavior<What type of messages it will receive>
-public class SchedulerReporter extends AbstractBehavior<Reporter.Command> implements Reporter {
+public class SchedulerReporter extends Reporter {
 
     /************************************* 
      * MESSAGES IT RECEIVES 
@@ -127,18 +124,33 @@ public class SchedulerReporter extends AbstractBehavior<Reporter.Command> implem
         }
     }
 
-    public static final class SubscribeForNewEvents implements Command {
-        final ActorRef<Response> subscriber;
+    public static final class SubscribeForCurrentEvent implements Command {
+        final ActorRef<CurrentEventResponse> subscriber;
 
-        public SubscribeForNewEvents(ActorRef<Response> subscriber) {
+        public SubscribeForCurrentEvent(ActorRef<CurrentEventResponse> subscriber) {
             this.subscriber = subscriber;
         }
     }
 
-    public static final class UnsubscribeForNewEvents implements Command {
-        final ActorRef<Response> subscriber;
+    public static final class UnsubscribeFromCurrentEvent implements Command {
+        final ActorRef<CurrentEventResponse> subscriber;
 
-        public UnsubscribeForNewEvents(ActorRef<Response> subscriber) {
+        public UnsubscribeFromCurrentEvent(ActorRef<CurrentEventResponse> subscriber) {
+            this.subscriber = subscriber;
+        }
+    }
+    public static final class SubscribeForUpdates implements Command {
+        final ActorRef<UpdateEventResponse> subscriber;
+
+        public SubscribeForUpdates(ActorRef<UpdateEventResponse> subscriber) {
+            this.subscriber = subscriber;
+        }
+    }
+
+    public static final class UnsubscribeFromUpdates implements Command {
+        final ActorRef<UpdateEventResponse> subscriber;
+
+        public UnsubscribeFromUpdates(ActorRef<UpdateEventResponse> subscriber) {
             this.subscriber = subscriber;
         }
     }
@@ -153,6 +165,14 @@ public class SchedulerReporter extends AbstractBehavior<Reporter.Command> implem
         final public Optional<CalendarEvent> event;
 
         public CurrentEventResponse(Optional<CalendarEvent> event) {
+            this.event = event;
+        }
+    }
+
+    public static final class UpdateEventResponse implements Response {
+        final public UpdateEvent event;
+
+        public UpdateEventResponse(UpdateEvent event) {
             this.event = event;
         }
     }
@@ -214,31 +234,56 @@ public class SchedulerReporter extends AbstractBehavior<Reporter.Command> implem
      * Here we're watching for if a SQLException occurs, which will log it for us and simply resume.
      * It resumes since it likely isn't a killer exception.
      */
-    public static Behavior<Reporter.Command> create(String calendarName, String calendarDBURI, String calendarTableName) {
+    public static Behavior<Reporter.Command> create(ActorRef<SQLiteHandler.StatusOfRead> statusListener,
+                                                    String databaseURI,
+                                                    String tableName,
+                                                    int readRate,
+                                                    String calendarName)
+    {
         // return Behaviors.setup(context -> new SchedulerReporter(context, calendarName, calendarDBURI, calendarTableName));
         return Behaviors.<Reporter.Command>supervise(
             Behaviors.setup(
-                context -> new SchedulerReporter(context, calendarName, calendarDBURI, calendarTableName)
+                context -> 
+                Behaviors.withTimers(
+                    timers -> new SchedulerReporter(context,
+                                                    timers,
+                                                    statusListener,
+                                                    databaseURI,
+                                                    tableName,
+                                                    readRate,
+                                                    calendarName)
+                )
             )
         ).onFailure(SQLException.class, SupervisorStrategy.resume());
     }
 
     // Just some instance variables
+    private static final String periodicTimerName = "scheduler-periodic";
     private Optional<CalendarEvent> curEvent;
     private HashMap<String, CalendarData> calendars;
     private final String calendarDemoName;
+    private final ActorRef<Topic.Command<CurrentEventResponse>> curEventTopic;
 
     /**
      * Constructor for this actor
      */
-    private SchedulerReporter(ActorContext<Reporter.Command> context, String calendarName, String calendarDBURI, String calendarTableName) {
-        super(context);
+    private SchedulerReporter(ActorContext<Reporter.Command> context,
+                              TimerScheduler<Reporter.Command> timers,
+                              ActorRef<SQLiteHandler.StatusOfRead> statusListener,
+                              String databaseURI,
+                              String tableName,
+                              int readRate,
+                              String calendarName)
+    {
+        super(context, timers, periodicTimerName, statusListener, databaseURI, tableName, readRate);
         this.curEvent = Optional.empty();
         calendars = new HashMap<>();
 
         this.calendarDemoName = calendarName;
-        CalendarData originalCalendar = new CalendarData(calendarName, calendarDBURI, calendarTableName);
+        CalendarData originalCalendar = new CalendarData(calendarName, databaseURI, tableName);
         calendars.put(calendarName, originalCalendar);
+
+        this.curEventTopic = context.spawn(Topic.create(CurrentEventResponse.class, "curevent-topic"), "curevent-topic");
 
         context.getLog().info("Scheduler Reporter");
     }
@@ -290,54 +335,57 @@ public class SchedulerReporter extends AbstractBehavior<Reporter.Command> implem
             .onMessage(AddToSchedule.class, this::onAddToSchedule)
             .onMessage(AddCalendar.class, this::onAddCalendar)
             .onMessage(GetEventsInRange.class, this::onGetEventsInRange)
+            .onMessage(SubscribeForCurrentEvent.class, this::onSubscribeForCurrentEvent)
+            .onMessage(UnsubscribeFromCurrentEvent.class, this::onUnsubscribeFromCurrentEvent)
+            .onMessage(StartReading.class, this::onStartReading)
+            .onMessage(StopReading.class, this::onStopReading)
             .onSignal(PostStop.class, signal -> onPostStop())
             .build();
     }
 
 
-    private Behavior<Reporter.Command> onReadRowOfData(ReadRowOfData msg) throws ClassNotFoundException, SQLException {
+    protected Behavior<Reporter.Command> onReadRowOfData(ReadRowOfData msg) throws ClassNotFoundException, SQLException {
         CalendarData calendar = calendars.get(this.calendarDemoName);
-        Logger logger = getContext().getLog();
         ActorPath myPath = getContext().getSelf().path();
 
-        Connection conn = Reporter.connectToDB(calendar.databaseURI, logger, msg.replyTo, myPath);
+        List<String> columnHeaders = List.of(
+            "id",
+            "time",
+            "event"
+        );
 
-        try {
-            String query = "SELECT id, DateTime, Schedule FROM " + calendar.tableName + " WHERE id = ?";
-            PreparedStatement statement;
-            statement = conn.prepareStatement(query);
-            statement.setInt(1, msg.rowNumber);
+        ResultSet results = queryDB(columnHeaders, myPath, msg.rowNumber);
 
-            ResultSet results = Reporter.queryDB(calendar.databaseURI, statement, logger, msg.replyTo, myPath);
+        if (results != null && results.next()) {
+            Optional<String> eventName = Optional.ofNullable(results.getString("Schedule"));
+            String dateTimeStr = results.getString("DateTime");
+            Optional<DateTime> eventTime = DateTime.fromIsoDateTimeString(dateTimeStr);
 
-            if (results.next()) {
-                Optional<String> eventName = Optional.ofNullable(results.getString("Schedule"));
-                String dateTimeStr = results.getString("DateTime");
-                Optional<DateTime> eventTime = DateTime.fromIsoDateTimeString(dateTimeStr);
+            if (eventName.isPresent() && eventTime.isPresent()) {
+                Duration tmpDuration = Duration.ofMinutes(30L); // TODO: TEMPORARY
+                Optional.of(Duration.ofDays(1));
 
-                if (eventName.isPresent() && eventTime.isPresent()) {
-                    Duration tmpDuration = Duration.ofMinutes(30L); // TODO: TEMPORARY
-                    Optional.of(Duration.ofDays(1));
-                    CalendarEvent event = new CalendarEvent(eventName.get(), eventTime.get(), tmpDuration, "");
-                    this.curEvent = Optional.of(event);
-                }
+                // Can share event because it is immutable
+                CalendarEvent event = new CalendarEvent(eventName.get(), eventTime.get(), tmpDuration, "");
 
-                results.close();
-                msg.replyTo.tell(new Reporter.StatusOfRead(true, "Succesfully read row " + msg.rowNumber, myPath));
+                this.curEvent = Optional.of(event);
+                this.curEventTopic.tell(Topic.publish(
+                    new CurrentEventResponse(Optional.of(event))
+                ));
 
-                
+                msg.replyTo.tell(new SQLiteHandler.StatusOfRead(true, "Succesfully read row " + msg.rowNumber, myPath));
             } else {
-                msg.replyTo.tell(new Reporter.StatusOfRead(false, "No results from row " + msg.rowNumber, myPath));
+                this.curEvent = Optional.empty();
             }
             
-        conn.close();
-
-        } catch (SQLException e) {
-            String errorMsg = "Failed to prepare statement";
-            msg.replyTo.tell(new Reporter.StatusOfRead(false, errorMsg, myPath));
-            throw e;
+        } else {
+            this.curEvent = Optional.empty();
+            msg.replyTo.tell(new SQLiteHandler.StatusOfRead(false, "No results from row " + msg.rowNumber, myPath));
         }
 
+        if (results != null)
+            results.close();
+            
         return this;
     }
 
@@ -386,6 +434,17 @@ public class SchedulerReporter extends AbstractBehavior<Reporter.Command> implem
         msg.replyTo.tell(new ResponseEventsInRange(new HashMap<String, Object>()));
         return this;
     }
+    private Behavior<Reporter.Command> onSubscribeForCurrentEvent(SubscribeForCurrentEvent msg) {
+        getContext().getLog().info("New current event subscriber added");
+        this.curEventTopic.tell(Topic.subscribe(msg.subscriber));
+        return this;
+    }
+
+    private Behavior<Reporter.Command> onUnsubscribeFromCurrentEvent(UnsubscribeFromCurrentEvent msg) {
+        getContext().getLog().info("Actor has unsubscribed from current event");
+        this.curEventTopic.tell(Topic.unsubscribe(msg.subscriber));
+        return this;
+    }
     
     /**
      * What to do when shut down by a supervisor
@@ -410,10 +469,10 @@ public class SchedulerReporter extends AbstractBehavior<Reporter.Command> implem
         }
     }
     public class CalendarEvent {
-        String eventName;
-        DateTime time;
-        Duration length;
-        String calendarType;
+        final String eventName;
+        final DateTime time;
+        final Duration length;
+        final String calendarType;
 
         public CalendarEvent(String eventName, DateTime time, Duration length, String calendarType) {
             this.eventName = eventName;
@@ -421,5 +480,9 @@ public class SchedulerReporter extends AbstractBehavior<Reporter.Command> implem
             this.length = length;
             this.calendarType = calendarType;
         }
+    }
+
+    public class UpdateEvent {
+        
     }
 }

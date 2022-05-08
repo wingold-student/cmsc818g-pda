@@ -1,8 +1,21 @@
 package com.cmsc818g.StressRecommendationEngine;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Optional;
 
 import com.cmsc818g.StressManagementController;
+import com.cmsc818g.StressContextEngine.Reporters.LocationReporter;
+import com.cmsc818g.StressContextEngine.Reporters.SleepReporter;
+import com.cmsc818g.StressContextEngine.Reporters.LocationReporter.UserLocation;
+import com.cmsc818g.StressContextEngine.Reporters.SleepReporter.SleepHours;
+import com.cmsc818g.StressRecommendationEngine.RecommendationMetricsAggregator.AggregatedRecommendationMetrics;
+import com.fasterxml.jackson.core.exc.StreamReadException;
+import com.fasterxml.jackson.databind.DatabindException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+
 import akka.actor.typed.ActorRef;
 import akka.actor.typed.Behavior;
 import akka.actor.typed.PostStop;
@@ -24,7 +37,18 @@ Fetch recommendation from Policy DB
 
 public class StressRecommendationEngine extends AbstractBehavior<StressRecommendationEngine.Command> {
 
+    /************************************* 
+     * MESSAGES IT RECEIVES 
+     *************************************/
     public interface Command {}
+
+    public static class ScheduleReporterToRecommendation implements Command {
+      public final String message; //get schedule from schedule reporter
+
+      public ScheduleReporterToRecommendation(String message) {
+        this.message = message;
+      }
+    }
     public static class recommendEngineGreet implements Command {
         public final ActorRef<StressManagementController.Command> replyTo;
         public final ArrayList<String> list;
@@ -42,15 +66,57 @@ public class StressRecommendationEngine extends AbstractBehavior<StressRecommend
         }
       }//end of class recommendEngineGreet
 
-    public static Behavior<Command> create() {
-      return Behaviors.setup(context -> new StressRecommendationEngine(context));
+    public static final class AdaptedAggreatedMetrics implements Command {
+        public final AggregatedRecommendationMetrics response;
+
+        public AdaptedAggreatedMetrics(AggregatedRecommendationMetrics response) {
+            this.response = response;
+        }
     }
 
-    public StressRecommendationEngine(ActorContext<Command> context) {
+    /************************************* 
+     * MESSAGES IT SENDS
+     *************************************/
+
+    /************************************* 
+     * CREATION 
+     *************************************/
+    public static Behavior<Command> create(String configFilename) {
+      return Behaviors.setup(context -> new StressRecommendationEngine(context, configFilename));
+    }
+
+    private final ActorRef<RecommendationMetricsAggregator.Command> aggregator;
+    private final ActorRef<RecommendationMetricsAggregator.AggregatedRecommendationMetrics> aggregatorAdapter;
+
+    private Optional<SleepHours> sleepReading;
+    private Optional<UserLocation> locReading;
+    private boolean haveMetrics = false;
+
+    public StressRecommendationEngine(ActorContext<Command> context, String configFilename) throws StreamReadException, DatabindException, IOException {
         super(context);
         getContext().getLog().info("Recommendation Engine actor created"); 
+
+        ObjectMapper yamlReader = new ObjectMapper(new YAMLFactory());
+        InputStream cfgFilestream = getClass().getClassLoader().getResourceAsStream(configFilename);
+        RecommendationConfig cfg = yamlReader.readValue(cfgFilestream, RecommendationConfig.class);
+
+        // TODO: Temporary
+        RecommendationMetricsConfig config = new RecommendationMetricsConfig(
+          cfg.detectionMetricsCounts,
+          null,
+          null
+          );
+        
+        this.aggregatorAdapter = context.messageAdapter(RecommendationMetricsAggregator.AggregatedRecommendationMetrics.class, AdaptedAggreatedMetrics::new);
+
+        // TODO: Note this starts it immediately
+        this.aggregator = context.spawn(RecommendationMetricsAggregator.create(config, this.aggregatorAdapter), "RecommednationAggregator");
     }
   
+    /************************************* 
+     * MESSAGE HANDLING 
+     *************************************/
+
     /*
     * receiving responses from reporters
     */
@@ -58,8 +124,7 @@ public class StressRecommendationEngine extends AbstractBehavior<StressRecommend
     public Receive<Command> createReceive() {
       return newReceiveBuilder()
       .onMessage(recommendEngineGreet.class, this::onEngineResponse)
-      .onMessage(SleepReporterToRecommendation.class, this::onSleepReporterResponse)      
-      .onMessage(LocationReporterToRecommendation.class, this::onLocationReporterResponse)
+      .onMessage(AdaptedAggreatedMetrics.class, this::onAggregatedMetrics)
       .onMessage(ScheduleReporterToRecommendation.class, this::onScheduleReporterResponse)
       .onSignal(PostStop.class, signal -> onPostStop())
       .build();
@@ -74,13 +139,14 @@ public class StressRecommendationEngine extends AbstractBehavior<StressRecommend
       return this;
     }
 
-    private Behavior<Command> onSleepReporterResponse(SleepReporterToRecommendation response) {
-      getContext().getLog().info("Got response from Sleep Reporter: {}", response.sleepHours); 
-      return this;
-    }
+    private Behavior<Command> onAggregatedMetrics(AdaptedAggreatedMetrics wrapped) {
+      AggregatedRecommendationMetrics metrics = wrapped.response;
 
-    private Behavior<Command> onLocationReporterResponse(LocationReporterToRecommendation response) {
-      getContext().getLog().info("Got response from Location Reporter: {}", response.location); 
+      sleepReading = metrics.sleepReading;
+      locReading = metrics.locReading;
+
+      // TODO: Somewhat temporary. Could instead now call the actual recommendation algorithm
+      haveMetrics = true;
       return this;
     }
 
@@ -94,28 +160,35 @@ public class StressRecommendationEngine extends AbstractBehavior<StressRecommend
       return this;
   }
 
-    public static class SleepReporterToRecommendation implements Command {
-      public final int sleepHours; //get sleep hours from sleep reporter
+    /************************************* 
+     * HELPER FUNCTIONS
+     *************************************/
 
-      public SleepReporterToRecommendation(int sleepHours) {
-        this.sleepHours = sleepHours;
-      }
+    /************************************* 
+     * HELPER CLASSES
+     *************************************/
+    public static class RecommendationMetricsCounts {
+        public int sleepCount;
+        public int locCount;
     }
-
-    public static class LocationReporterToRecommendation implements Command {
-      public final String location; //get location from location reporter
-      public LocationReporterToRecommendation(String location) {
-        this.location = location;
-      }
+    public static class RecommendationConfig {
+      public RecommendationMetricsCounts detectionMetricsCounts;
     }
+    public static class RecommendationMetricsConfig {
+        public final ActorRef<SleepReporter.Command> sleepReporter;
+        public final ActorRef<LocationReporter.Command> locReporter;
 
-    public static class ScheduleReporterToRecommendation implements Command {
-      public final String message; //get schedule from schedule reporter
+        public final RecommendationMetricsCounts countCfg;
 
-      public ScheduleReporterToRecommendation(String message) {
-        this.message = message;
-      }
+        public RecommendationMetricsConfig(
+            RecommendationMetricsCounts countCfg,
+            ActorRef<SleepReporter.Command> sleepReporter,
+            ActorRef<LocationReporter.Command> locReporter
+        ) {
+            this.countCfg = countCfg;
+            this.sleepReporter = sleepReporter;
+            this.locReporter = locReporter;
+        }
     }
-
 
 }

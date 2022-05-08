@@ -14,7 +14,7 @@ import akka.actor.typed.ActorSystem;
 public class App 
 {
     public static void main( String[] args ) throws Exception  {
-        final ActorSystem<StressManagementController.Command> system = ActorSystem.create(StressManagementController.create(), "pda-system");
+        final ActorSystem<StressManagementController.Command> system = ActorSystem.create(StressManagementController.create("configs/controller.yml"), "pda-system");
         try {
             System.in.read();
         } catch (IOException e) {

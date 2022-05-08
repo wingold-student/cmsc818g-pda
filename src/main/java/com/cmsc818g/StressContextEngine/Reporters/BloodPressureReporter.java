@@ -1,23 +1,22 @@
 package com.cmsc818g.StressContextEngine.Reporters;
 
-import java.sql.Connection;
-import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.List;
 import java.util.Optional;
 
-import org.slf4j.Logger;
+import com.cmsc818g.Utilities.SQLiteHandler;
 
 import akka.actor.ActorPath;
 import akka.actor.typed.SupervisorStrategy;
 import akka.actor.typed.ActorRef;
 import akka.actor.typed.Behavior;
 import akka.actor.typed.PostStop;
-import akka.actor.typed.javadsl.AbstractBehavior;
 import akka.actor.typed.javadsl.ActorContext;
 import akka.actor.typed.javadsl.Behaviors;
 import akka.actor.typed.javadsl.Receive;
-import akka.http.javadsl.model.DateTime;
+import akka.actor.typed.javadsl.TimerScheduler;
+import akka.actor.typed.pubsub.Topic;
 
 /**
  * Main job of this actor is to get blood pressure readings.
@@ -26,7 +25,7 @@ import akka.http.javadsl.model.DateTime;
  * ease since all reporters will be reading from a database. By engines/others,
  * it should be reached out to via `BloodPressureReporter.Command`s.
  */
-public class BloodPressureReporter extends AbstractBehavior<Reporter.Command> {
+public class BloodPressureReporter extends Reporter {
     /************************************* 
      * MESSAGES IT RECEIVES 
      *************************************/
@@ -38,6 +37,22 @@ public class BloodPressureReporter extends AbstractBehavior<Reporter.Command> {
 
         public ReadBloodPressure(ActorRef<BloodPressureReading> replyTo) {
             this.replyTo = replyTo;
+        }
+    }
+
+    public static final class Subscribe implements Command {
+        final ActorRef<BloodPressureReading> subscriber;
+
+        public Subscribe(ActorRef<BloodPressureReading> subscriber) {
+            this.subscriber = subscriber;
+        }
+    }
+
+    public static final class Unsubscribe implements Command {
+        final ActorRef<BloodPressureReading> subscriber;
+
+        public Unsubscribe(ActorRef<BloodPressureReading> subscriber) {
+            this.subscriber = subscriber;
         }
     }
 
@@ -71,17 +86,21 @@ public class BloodPressureReporter extends AbstractBehavior<Reporter.Command> {
      * @param tableName Name of the table it should read from in the database
      * @return Behavior that it will take Reporter.Commands (or BloodPressureReporter.Commands)
      */
-    public static Behavior<Reporter.Command> create(String databaseURI, String tableName) {
+    public static Behavior<Reporter.Command> create(ActorRef<SQLiteHandler.StatusOfRead> statusListener, String databaseURI, String tableName, int readRate) {
         return Behaviors.<Reporter.Command>supervise(
             Behaviors.setup(
-                context -> new BloodPressureReporter(context, databaseURI, tableName)
+                context -> 
+                Behaviors.withTimers(
+                    timers -> new BloodPressureReporter(context, timers, statusListener, databaseURI, tableName, readRate)
+                )
             )
         ).onFailure(SQLException.class, SupervisorStrategy.resume());
     }
 
-    private final String databaseURI;
-    private final String tableName;
+    private final static String periodicTimerName = "bp-periodic";
+
     private Optional<BloodPressure> lastReading;
+    private final ActorRef<Topic.Command<BloodPressureReading>> bpTopic;
 
     /**
      * Creates a BloodPressureReporter.
@@ -91,11 +110,17 @@ public class BloodPressureReporter extends AbstractBehavior<Reporter.Command> {
      * @param databaseURI URI to the database to read from for blood pressure
      * @param tableName Table in the database to use
      */
-    private BloodPressureReporter(ActorContext<Reporter.Command> context, String databaseURI, String tableName) {
-        super(context);
-        this.databaseURI = databaseURI;
-        this.tableName = tableName;
+    private BloodPressureReporter(ActorContext<Reporter.Command> context,
+            TimerScheduler<Reporter.Command> timers,
+            ActorRef<SQLiteHandler.StatusOfRead> statusListener,
+            String databaseURI,
+            String tableName,
+            int readRate) {
+
+        super(context, timers, periodicTimerName, statusListener, databaseURI, tableName, readRate);
+
         this.lastReading = Optional.empty();
+        this.bpTopic = context.spawn(Topic.create(BloodPressureReading.class, "bp-topic"), "bp-topic");
     }
 
     /************************************* 
@@ -107,6 +132,10 @@ public class BloodPressureReporter extends AbstractBehavior<Reporter.Command> {
         return newReceiveBuilder()
             .onMessage(Reporter.ReadRowOfData.class, this::onReadRowOfData)
             .onMessage(ReadBloodPressure.class, this::onReadBloodPressure)
+            .onMessage(Subscribe.class, this::onSubscribe)
+            .onMessage(Unsubscribe.class, this::onUnsubscribe)
+            .onMessage(StartReading.class, this::onStartReading)
+            .onMessage(StopReading.class, this::onStopReading)
             .onSignal(PostStop.class, signal -> onPostStop())
             .build();
     }
@@ -116,70 +145,58 @@ public class BloodPressureReporter extends AbstractBehavior<Reporter.Command> {
      * 
      * @param msg Contains what row to read from the database
      * @return itself as unchanged
-     * @throws ClassNotFoundException if the SQL driver cannot be loaded/found
-     * @throws SQLException if there is an issue with SQL query/database
+     * @throws SQLException
+     * @throws ClassNotFoundException
+     * @throws Exception
      */
-    private Behavior<Reporter.Command> onReadRowOfData(Reporter.ReadRowOfData msg) throws ClassNotFoundException, SQLException {
-        // Used for messages later
-        Logger logger = getContext().getLog();
+    protected Behavior<Reporter.Command> onReadRowOfData(Reporter.ReadRowOfData msg) throws ClassNotFoundException, SQLException {
         ActorPath myPath = getContext().getSelf().path();
 
-        // Forms a connection to the database
-        Connection conn = Reporter.connectToDB(this.databaseURI, logger, msg.replyTo, myPath);
+        // Query itself with variables to be filled
+        List<String> columnHeaders = List.of(
+            "id",
+            "time",
+            "bp-systolic",
+            "bp-diastolic"
+        );
 
-        try {
-            // Query itself with variables to be filled
-            String query = "SELECT id, DateTime, Bloodpressure FROM " + this.tableName + " WHERE id = ?";
+        ResultSet results = queryDB(columnHeaders, myPath, msg.rowNumber);
 
-            // Form a statement and fill in the variables
-            PreparedStatement statement;
-            statement = conn.prepareStatement(query);
-            statement.setInt(1, msg.rowNumber); // `id` is the only variable ( ? )
+        if (results != null && results.next()) {
 
-            ResultSet results = Reporter.queryDB(this.databaseURI, statement, logger, msg.replyTo, myPath);
+            // The cell in the database can be empty/null
+            Optional<Integer> systolic = Optional.ofNullable(results.getInt("bp-systolic"));
+            Optional<Integer> diastolic = Optional.ofNullable(results.getInt("bp-diastolic"));
 
-            // Need to call `.next()` as the iterator starts before the data
-            // If no data, then it will return null
-            if (results.next()) {
+            // Get the time (no date atm), could be null
+            Optional<String> readingTime = Optional.ofNullable(results.getString("time"));
 
-                // The cell in the database can be empty/null
-                Optional<String> reading = Optional.ofNullable(results.getString("Bloodpressure"));
+            // Create the latest reading only if all data is there
+            if (systolic.isPresent() && diastolic.isPresent()) {
 
-                // Not expecting DateTime to not exist though, so can just get it
-                String dateTimeStr = results.getString("DateTime");
+                // BloodPressure is immutable, so both last reading and the topic can have it
+                BloodPressure bp = new BloodPressure(readingTime, systolic.get(), diastolic.get());
 
-                // Convert into DateTime, could fail, hence `Optional`
-                Optional<DateTime> readingTime = DateTime.fromIsoDateTimeString(dateTimeStr);
-
-                // Create the latest reading only if all data is there
-                if (reading.isPresent() && readingTime.isPresent()) {
-                    String[] high_low = reading.get().split("/");
-                    this.lastReading = Optional.of(new BloodPressure(readingTime, high_low[0], high_low[1]));
-                }
-
-                results.close();
+                this.lastReading = Optional.of(bp);
+                this.bpTopic.tell(Topic.publish(
+                    new BloodPressureReading(Optional.of(bp))
+                ));
 
                 // Tell the Context Engine we've successfully read
-                msg.replyTo.tell(new Reporter.StatusOfRead(true, "Succesfully read row " + msg.rowNumber, myPath));
-                
+                msg.replyTo.tell(new SQLiteHandler.StatusOfRead(true, "Succesfully read row " + msg.rowNumber, myPath));
             } else {
-
-                // Tell the Context Engine we had a problem
-                msg.replyTo.tell(new Reporter.StatusOfRead(false, "No results from row " + msg.rowNumber, myPath));
+                this.lastReading = Optional.empty();
             }
             
-        conn.close();
-
-        } catch (SQLException e) {
+        } else {
+            this.lastReading = Optional.empty();
             // Tell the Context Engine we had a problem
-            String errorMsg = "Failed to prepare statement";
-            msg.replyTo.tell(new Reporter.StatusOfRead(false, errorMsg, myPath));
-
-            // Throwing it because it'll log this way. And we could handle differently
-            // later if we want
-            throw e;
+            msg.replyTo.tell(new SQLiteHandler.StatusOfRead(false, "No results from row " + msg.rowNumber, myPath));
         }
 
+        if (results != null)
+            results.close();
+            
         return this;
     }
 
@@ -192,6 +209,20 @@ public class BloodPressureReporter extends AbstractBehavior<Reporter.Command> {
         msg.replyTo.tell(new BloodPressureReading(this.lastReading));
         return this;
     }
+
+    private Behavior<Reporter.Command> onSubscribe(Subscribe msg) {
+        getContext().getLog().info("New subscriber added");
+        this.bpTopic.tell(Topic.subscribe(msg.subscriber));
+        return this;
+    }
+
+    private Behavior<Reporter.Command> onUnsubscribe(Unsubscribe msg) {
+        getContext().getLog().info("Actor has unsubscribed");
+        this.bpTopic.tell(Topic.unsubscribe(msg.subscriber));
+        return this;
+    }
+
+
 
     /**
      * Could do any necessary cleanup here.
@@ -208,20 +239,25 @@ public class BloodPressureReporter extends AbstractBehavior<Reporter.Command> {
      * HELPER CLASSES
      *************************************/
     public class BloodPressure {
-        final Optional<DateTime> readingTime;
+        final Optional<String> readingTime;
         final int systolic;
         final int diastolic;
 
-        public BloodPressure(Optional<DateTime> readingTime, String upper, String lower) {
+        public BloodPressure(Optional<String> readingTime, int systolic, int diastolic) {
             this.readingTime = readingTime;
-            this.systolic = Integer.parseInt(upper);
-            this.diastolic = Integer.parseInt(lower);
+            this.systolic = systolic;
+            this.diastolic = diastolic;
         }
         public int getSystolicBP(){
             return systolic;
         }
         public int getDiastolicBP(){
             return diastolic;
+        }
+
+        @Override
+        public String toString() {
+            return systolic + "/" + diastolic;
         }
     }
 }

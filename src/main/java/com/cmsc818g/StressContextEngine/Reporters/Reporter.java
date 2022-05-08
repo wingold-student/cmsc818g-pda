@@ -2,15 +2,20 @@ package com.cmsc818g.StressContextEngine.Reporters;
 
 import java.sql.Connection;
 
-import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.time.Duration;
+import java.util.List;
 
-import org.slf4j.Logger;
+import com.cmsc818g.Utilities.SQLiteHandler;
 
 import akka.actor.ActorPath;
 import akka.actor.typed.ActorRef;
+import akka.actor.typed.Behavior;
+import akka.actor.typed.javadsl.AbstractBehavior;
+import akka.actor.typed.javadsl.ActorContext;
+import akka.actor.typed.javadsl.TimerScheduler;
 
 
 /**
@@ -22,7 +27,8 @@ import akka.actor.typed.ActorRef;
  * time.
  * 
  */
-public interface Reporter {
+public abstract class Reporter extends AbstractBehavior<Reporter.Command> {
+
 
     /**
      * TODO: This may be temporary. As it may not be good practice or necessary
@@ -30,6 +36,13 @@ public interface Reporter {
      */
     public interface Command {}
 
+    public static enum StartReading implements Command {
+        INSTANCE
+    }
+
+    public static enum StopReading implements Command {
+        INSTANCE
+    }
     /** TODO:
      * This is a potentially temporary message to keep all reporters aligned on the same
      * row in the database. However, later we can likely do away with the
@@ -37,9 +50,9 @@ public interface Reporter {
      */
     public static final class ReadRowOfData implements Command {
         final int rowNumber;
-        final ActorRef<StatusOfRead> replyTo;
+        final ActorRef<SQLiteHandler.StatusOfRead> replyTo;
 
-        public ReadRowOfData(int rowNumber, ActorRef<StatusOfRead> replyTo) {
+        public ReadRowOfData(int rowNumber, ActorRef<SQLiteHandler.StatusOfRead> replyTo) {
             this.rowNumber = rowNumber;
             this.replyTo = replyTo;
         }
@@ -47,79 +60,82 @@ public interface Reporter {
 
     public interface Response {}
 
-    /**
-     * Holds data that may be useful for debugging / information.
-     * 
-     * Mainly received by the Context Engine
-     */
-    public static final class StatusOfRead implements Response {
-        public final boolean success;
-        public final String message;
-        public final ActorPath actorPath;
+    
+    private final String databaseURI;
+    private final String tableName;
+    private final int readRate;
+    private final String timerName;
+    private final TimerScheduler<Command> timers;
+    private int currentRow;
+    private final ActorRef<SQLiteHandler.StatusOfRead> statusListener;
 
-        public StatusOfRead(boolean success, String message, ActorPath actorPath) {
-            this.success = success;
-            this.message = message;
-            this.actorPath = actorPath;
-        }
+    public Reporter(
+            ActorContext<Command> context,
+            TimerScheduler<Command> timers,
+            String timerName,
+            ActorRef<SQLiteHandler.StatusOfRead> statusListener,
+            String databaseURI,
+            String tableName,
+            int readRate
+    ) {
+        super(context);
+
+        this.timers = timers;
+        this.timerName = timerName;
+
+        this.statusListener = statusListener;
+        this.databaseURI = databaseURI;
+        this.tableName = tableName;
+        this.readRate = readRate;
+
+        this.currentRow = 0;
+    }
+    
+    protected Behavior<Reporter.Command> onStartReading(StartReading msg) {
+        this.currentRow = 0;
+        int copyOfRow = currentRow;
+
+        timers.startTimerAtFixedRate(this.timerName,
+                                    new Reporter.ReadRowOfData(copyOfRow, this.statusListener),
+                                    Duration.ofSeconds(readRate));
+        return this;
     }
 
-    /**
-     * Connects to the requested database.
-     * 
-     * @param databaseURI
-     * @param logger
-     * @param replyTo
-     * @return
-     * @throws ClassNotFoundException
-     * @throws SQLException
-     */
-    static Connection connectToDB(String databaseURI,
-                                    Logger logger,
-                                    ActorRef<StatusOfRead> replyTo,
-                                    ActorPath myPath) throws ClassNotFoundException, SQLException {
-        Connection conn = null;
-        String errorMsg = null;
-
-        try {
-            Class.forName("org.sqlite.JDBC");
-            conn = DriverManager.getConnection(databaseURI);
-        } catch (SQLException e) {
-            errorMsg = "Failed to connect to the database: " + databaseURI;
-            replyTo.tell(new StatusOfRead(false, errorMsg, myPath));
-            throw e;
-        }
-
-        return conn;
+    protected Behavior<Reporter.Command> onStopReading(StopReading msg) {
+        getContext().getLog().info("Stopped reading from database");
+        timers.cancel(this.timerName);
+        return this;
     }
 
-    /**
-     * Executes the query on the database.
-     * 
-     * @param databaseURI
-     * @param statement
-     * @param logger
-     * @param replyTo
-     * @param myPath
-     * @return
-     * @throws SQLException
-     */
-    static ResultSet queryDB(String databaseURI,
-                            PreparedStatement statement,
-                            Logger logger,
-                            ActorRef<StatusOfRead> replyTo,
-                            ActorPath myPath) throws SQLException {
+    protected ResultSet queryDB(List<String> columnHeaders, ActorPath actorPath, int rowNumber) throws ClassNotFoundException, SQLException {
+        String headers = String.join(", ", columnHeaders);
+        String sql = String.format("SELECT {} FROM {} WHERE id = ?", headers, tableName);
 
         ResultSet results = null;
+        Connection conn = null;
 
         try {
-            results = statement.executeQuery();
-        } catch (SQLException e) {
-            String errorMsg = "Failed query: " + statement.toString();
-            replyTo.tell(new StatusOfRead(false, errorMsg, myPath));
+            conn = SQLiteHandler.connectToDB(databaseURI, statusListener, actorPath);
+            PreparedStatement statement = conn.prepareStatement(sql);
+            statement.setInt(1, rowNumber);
+            results = SQLiteHandler.queryDB(databaseURI, statement, statusListener, actorPath);
+        } catch (ClassNotFoundException e) {
+            String errorStr = "Failed find the SQLite drivers";
+            getContext().getLog().error(errorStr, e);
+            getContext().getSelf().tell(StopReading.INSTANCE);
             throw e;
+        } catch(SQLException e) {
+            String errorStr = String.format("Failed to execute SQL query {} on row {} from actor {}", sql, rowNumber, actorPath);
+            getContext().getLog().error(errorStr, e);
+            getContext().getSelf().tell(StopReading.INSTANCE);
+            throw e;
+        } finally {
+            if (conn != null)
+                conn.close();
         }
 
         return results;
     }
+
+    protected abstract Behavior<Reporter.Command> onReadRowOfData(ReadRowOfData msg)  throws ClassNotFoundException, SQLException;
 }
