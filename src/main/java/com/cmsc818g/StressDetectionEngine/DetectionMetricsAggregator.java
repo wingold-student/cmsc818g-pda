@@ -26,6 +26,7 @@ import akka.actor.typed.javadsl.AbstractBehavior;
 import akka.actor.typed.javadsl.ActorContext;
 import akka.actor.typed.javadsl.Behaviors;
 import akka.actor.typed.javadsl.Receive;
+import akka.http.impl.engine.server.GracefulTerminatorStage;
 
 public class DetectionMetricsAggregator extends AbstractBehavior<DetectionMetricsAggregator.Command> {
     /************************************* 
@@ -89,6 +90,10 @@ public class DetectionMetricsAggregator extends AbstractBehavior<DetectionMetric
             this.response = response;
         }
     }
+
+    public static enum GracefulShutdown implements Command {
+        INSTANCE
+    };
 
     /************************************* 
      * MESSAGES IT SENDS
@@ -169,12 +174,12 @@ public class DetectionMetricsAggregator extends AbstractBehavior<DetectionMetric
 
         config.bpReporter.tell(new BloodPressureReporter.Subscribe(this.bpAdapter));       
         config.hrReporter.tell(new HeartRateReporter.Subscribe(this.hrAdapter));
-        config.sleepReporter.tell(new SleepReporter.Subscribe(this.sleepAdapter));
         config.locReporter.tell(new LocationReporter.Subscribe(this.locAdapter));
 
         // TODO: Query medical for some sort of data?
         config.medicalReporter.tell(new MedicalHistoryReporter.SendQuery("", this.medicalAdapter));
         config.busyReporter.tell(new BusynessReporter.GetCurrentBusynessLevel(this.busyAdapter));
+        config.sleepReporter.tell(new SleepReporter.ReadSleepHours(this.sleepAdapter));
     }
 
 
@@ -191,6 +196,7 @@ public class DetectionMetricsAggregator extends AbstractBehavior<DetectionMetric
             .onMessage(AdaptedLocationResponse.class, this::onAdaptedLocationResponse)
             .onMessage(AdaptedBusynessResponse.class, this::onAdaptedBusynessResponse)
             .onMessage(AdaptedMedicalHistoryResponse.class, this::onAdaptedMedicalHistoryResponse)
+            .onMessage(GracefulShutdown.class, this::onGracefulShutdown)
             .onSignal(PostStop.class, signal -> onPostStop())
             .build();
     }
@@ -237,7 +243,13 @@ public class DetectionMetricsAggregator extends AbstractBehavior<DetectionMetric
         return this;
     }
 
+    private DetectionMetricsAggregator onGracefulShutdown(GracefulShutdown msg) {
+        getContext().stop(getContext().getSelf());
+        return this;
+    }
+
     public DetectionMetricsAggregator onPostStop() {
+        Cleanup();
         getContext().getLog().info("Shutting down");
         return this;
 
@@ -263,7 +275,14 @@ public class DetectionMetricsAggregator extends AbstractBehavior<DetectionMetric
             medicalCount = 0;
 
             replyTo.tell(new AggregatedStressMetrics(bpReading, hrReading, sleepReading, locReading, busyReading, medicalReading));
+            getContext().getSelf().tell(GracefulShutdown.INSTANCE);
         }
+    }
+
+    private void Cleanup() {
+        this.config.bpReporter.tell(new BloodPressureReporter.Unsubscribe(this.bpAdapter));
+        this.config.hrReporter.tell(new HeartRateReporter.Unsubscribe(this.hrAdapter));
+        this.config.locReporter.tell(new LocationReporter.Unsubscribe(this.locAdapter));
     }
     /************************************* 
      * HELPER CLASSES

@@ -93,8 +93,9 @@ public class RecommendationMetricsAggregator extends AbstractBehavior<Recommenda
         sleepReading = Optional.empty();
         locReading = Optional.empty();
 
-        config.sleepReporter.tell(new SleepReporter.Subscribe(this.sleepAdapter));
         config.locReporter.tell(new LocationReporter.Subscribe(this.locAdapter));
+
+        config.sleepReporter.tell(new SleepReporter.ReadSleepHours(this.sleepAdapter));
     }
 
 
@@ -126,6 +127,7 @@ public class RecommendationMetricsAggregator extends AbstractBehavior<Recommenda
     }
 
     public RecommendationMetricsAggregator onPostStop() {
+        Cleanup();
         getContext().getLog().info("Shutting down");
         return this;
 
@@ -143,7 +145,12 @@ public class RecommendationMetricsAggregator extends AbstractBehavior<Recommenda
             locCount = 0;
 
             replyTo.tell(new AggregatedRecommendationMetrics(sleepReading, locReading));
+            getContext().stop(getContext().getSelf());
         }
+    }
+
+    private void Cleanup() {
+        config.locReporter.tell(new LocationReporter.Unsubscribe(this.locAdapter));
     }
 
     /************************************* 
