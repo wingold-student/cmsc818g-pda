@@ -59,8 +59,8 @@ public class StressManagementController extends AbstractBehavior<StressManagemen
         context.watch(child_ContextEngine);
         child_ContextEngine.tell(new StressContextEngine.contextEngineGreet(getContext().getSelf(), entityList));
 
-        //Read Entity Data
-        child_ContextEngine.tell(new StressContextEngine.StartPeriodicDatabaseReading(Duration.ofSeconds(1L)));
+        // Tell Reporters to start reading
+        child_ContextEngine.tell(StressContextEngine.TellAllReportersToPeriodicallyRead.INSTANCE);
 
         child_DetectionEngine = context.spawn(StressDetectionEngine.create(cfg.detectionEngineCfgName), "spawn");
         context.watch(child_DetectionEngine);
