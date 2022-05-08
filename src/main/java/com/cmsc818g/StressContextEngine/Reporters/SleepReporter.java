@@ -137,6 +137,7 @@ public class SleepReporter extends Reporter {
             .onMessage(Unsubscribe.class, this::onUnsubscribe)
             .onMessage(StartReading.class, this::onStartReading)
             .onMessage(StopReading.class, this::onStopReading)
+            .onMessage(TellSelfToRead.class, this::onTellSelfToRead)
             .onSignal(PostStop.class, signal -> onPostStop())
             .build();
     }

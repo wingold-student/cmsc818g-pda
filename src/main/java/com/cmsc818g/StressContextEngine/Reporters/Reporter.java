@@ -58,6 +58,10 @@ public abstract class Reporter extends AbstractBehavior<Reporter.Command> {
         }
     }
 
+    protected static enum TellSelfToRead implements Command {
+        INSTANCE
+    };
+
     public interface Response {}
 
     
@@ -93,12 +97,16 @@ public abstract class Reporter extends AbstractBehavior<Reporter.Command> {
     
     protected Behavior<Reporter.Command> onStartReading(StartReading msg) {
         this.currentRow = 1;
-        // int copyOfRow = currentRow;
 
         getContext().getLog().info("Starting periodic reads of data");
         timers.startTimerAtFixedRate(this.timerName,
-                                    new Reporter.ReadRowOfData(this.currentRow, this.statusListener),
+                                    TellSelfToRead.INSTANCE,
                                     Duration.ofSeconds(readRate));
+        return this;
+    }
+
+    protected Behavior<Reporter.Command> onTellSelfToRead(TellSelfToRead msg) {
+        getContext().getSelf().tell(new Reporter.ReadRowOfData(this.currentRow, this.statusListener));
         return this;
     }
 

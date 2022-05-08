@@ -162,6 +162,7 @@ public class BusynessReporter extends Reporter {
             .onMessage(GracefulShutdown.class, this::onGracefulShutdown)
             .onMessage(StartReading.class, this::onStartReading)
             .onMessage(StopReading.class, this::onStopReading)
+            .onMessage(TellSelfToRead.class, this::onTellSelfToRead)
             .onSignal(PostStop.class, signal -> onPostStop())
             .build();
     }

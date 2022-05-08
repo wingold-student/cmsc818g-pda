@@ -339,6 +339,7 @@ public class SchedulerReporter extends Reporter {
             .onMessage(UnsubscribeFromCurrentEvent.class, this::onUnsubscribeFromCurrentEvent)
             .onMessage(StartReading.class, this::onStartReading)
             .onMessage(StopReading.class, this::onStopReading)
+            .onMessage(TellSelfToRead.class, this::onTellSelfToRead)
             .onSignal(PostStop.class, signal -> onPostStop())
             .build();
     }

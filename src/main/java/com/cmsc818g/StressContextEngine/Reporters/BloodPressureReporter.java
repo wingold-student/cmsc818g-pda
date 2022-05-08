@@ -2,6 +2,7 @@ package com.cmsc818g.StressContextEngine.Reporters;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 
@@ -137,10 +138,10 @@ public class BloodPressureReporter extends Reporter {
             .onMessage(Unsubscribe.class, this::onUnsubscribe)
             .onMessage(StartReading.class, this::onStartReading)
             .onMessage(StopReading.class, this::onStopReading)
+            .onMessage(TellSelfToRead.class, this::onTellSelfToRead)
             .onSignal(PostStop.class, signal -> onPostStop())
             .build();
     }
-
     /**
      * Will query the database for a single row of data at the provided id (row).
      * 
