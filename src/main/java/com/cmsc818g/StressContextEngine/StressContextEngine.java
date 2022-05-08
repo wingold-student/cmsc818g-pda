@@ -1,8 +1,12 @@
 package com.cmsc818g.StressContextEngine;
 
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 
 import com.cmsc818g.StressManagementController;
 import com.cmsc818g.StressContextEngine.Reporters.BloodPressureReporter;
@@ -10,6 +14,10 @@ import com.cmsc818g.StressContextEngine.Reporters.HeartRateReporter;
 import com.cmsc818g.StressContextEngine.Reporters.BusynessReporter;
 import com.cmsc818g.StressContextEngine.Reporters.Reporter;
 import com.cmsc818g.StressContextEngine.Reporters.SchedulerReporter;
+import com.fasterxml.jackson.core.exc.StreamReadException;
+import com.fasterxml.jackson.databind.DatabindException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 
 import akka.actor.ActorPath;
 import akka.actor.typed.ActorRef;
@@ -66,16 +74,17 @@ public class StressContextEngine extends AbstractBehavior<StressContextEngine.Co
       }
     }
  
-    public static Behavior<Command> create(String databaseURI, String tableName) {
+    public static Behavior<Command> create(String databaseURI, String tableName, String configFilename) {
         return Behaviors.<Command>supervise(
             Behaviors.setup(context ->
               Behaviors.withTimers(
-                timers -> new StressContextEngine(context, timers, databaseURI, tableName)
+                timers -> new StressContextEngine(context, timers, databaseURI, tableName, configFilename)
             )
           )
         )
         .onFailure(ClassNotFoundException.class, SupervisorStrategy.stop());
     }
+
     private final TimerScheduler<Command> timers;
     private final ActorRef<Reporter.StatusOfRead> statusAdapter;
 
@@ -84,13 +93,17 @@ public class StressContextEngine extends AbstractBehavior<StressContextEngine.Co
     private int currentRowNumber; // TODO: Temporary whilst all reporters reading at same speed
     private final String periodicReporterTimer = "reporterReading";
 
-    public StressContextEngine(ActorContext<Command> context, TimerScheduler<Command> timers, String databaseURI, String tableName) {
+    public StressContextEngine(ActorContext<Command> context, TimerScheduler<Command> timers, String databaseURI, String tableName, String configFilename) throws StreamReadException, DatabindException, IOException {
         super(context);
         getContext().getLog().info("context engine actor created");
 
         this.timers = timers;
         this.currentRowNumber = 1;
         this.reporters = new HashMap<>();
+
+        ObjectMapper yamlReader = new ObjectMapper(new YAMLFactory());
+        InputStream cfgFilestream = getClass().getClassLoader().getResourceAsStream(configFilename);
+        ContextEngineConfig cfg = yamlReader.readValue(cfgFilestream, ContextEngineConfig.class);
 
         ActorRef<Reporter.Command> schedulerReporter = context.spawn(SchedulerReporter.create("demo", databaseURI, tableName), "Scheduler");
         ServiceKey<Reporter.Command> schedulerKey = ServiceKey.create(Reporter.Command.class, "Scheduler");
@@ -197,5 +210,17 @@ public class StressContextEngine extends AbstractBehavior<StressContextEngine.Co
     private Behavior<Command> onEngineResponse(contextEngineGreet message) { //controller 
         message.replyTo.tell(new StressManagementController.ContextEngineToController("contextEngine"));       
       return this;
+    }
+
+    public static class ReporterConfig
+    {
+      public String name;
+      public String dbURI;
+      public String table;
+      public int readRate;
+    }
+    public static class ContextEngineConfig
+    {
+      public List<ReporterConfig> reporterConfigs;
     }
 }

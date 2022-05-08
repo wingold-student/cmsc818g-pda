@@ -1,12 +1,19 @@
 package com.cmsc818g;
 
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
 import java.time.Duration;
 import java.util.ArrayList;
+
 import com.cmsc818g.StressContextEngine.StressContextEngine;
 import com.cmsc818g.StressDetectionEngine.StressDetectionEngine;
-import com.cmsc818g.StressEntityManager.StressEntityManager;
 import com.cmsc818g.StressRecommendationEngine.StressRecommendationEngine;
 import com.cmsc818g.StressUIManager.StressUIManager;
+import com.fasterxml.jackson.core.exc.StreamReadException;
+import com.fasterxml.jackson.databind.DatabindException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 
 import akka.actor.typed.ActorRef;
 import akka.actor.typed.Behavior;
@@ -16,6 +23,7 @@ import akka.actor.typed.javadsl.AbstractBehavior;
 import akka.actor.typed.javadsl.ActorContext;
 import akka.actor.typed.javadsl.Behaviors;
 import akka.actor.typed.javadsl.Receive;
+
 
 public class StressManagementController extends AbstractBehavior<StressManagementController.Command>
 {
@@ -30,7 +38,7 @@ public class StressManagementController extends AbstractBehavior<StressManagemen
     public final ActorRef<StressRecommendationEngine.Command> child_RecommendEngine;
     public final ActorRef<StressUIManager.Command> child_UIManager;
 
-    public StressManagementController(ActorContext<Command> context) {
+    public StressManagementController(ActorContext<Command> context, String configFilename) throws StreamReadException, DatabindException, IOException {
         super(context); 
         getContext().getLog().info("Controller Actor created");
 
@@ -38,12 +46,17 @@ public class StressManagementController extends AbstractBehavior<StressManagemen
         String databaseURI = "jdbc:sqlite:src/main/resources/DemoScenario.db";
         String tableName = "ScenarioForDemo";
 
+        InputStream is = getClass().getClassLoader().getResourceAsStream(configFilename);
+        ObjectMapper yamlReader = new ObjectMapper(new YAMLFactory());
+        ControllerConfig cfg = yamlReader.readValue(is, ControllerConfig.class);
+        context.getLog().info("Context engine: {}", cfg.contextEngineCfgName);
+
         /* Entity Manager gets/spawns Entities 
           child_EntityManager = context.spawn(StressEntityManager.create(), "StressEntityManager");
           context.watch(child_EntityManager);
           child_EntityManager.tell(new StressEntityManager.entityManagerGreet(getContext().getSelf()));
         */
-        child_ContextEngine = context.spawn(StressContextEngine.create(databaseURI, tableName), "StressContextEngine");
+        child_ContextEngine = context.spawn(StressContextEngine.create(databaseURI, tableName, cfg.contextEngineCfgName), "StressContextEngine");
         context.watch(child_ContextEngine);
         child_ContextEngine.tell(new StressContextEngine.contextEngineGreet(getContext().getSelf(), entityList));
 
@@ -65,8 +78,8 @@ public class StressManagementController extends AbstractBehavior<StressManagemen
       return;
     }//end of controllerProcess
 
-    public static Behavior<StressManagementController.Command> create() {
-      return Behaviors.setup(StressManagementController::new);
+    public static Behavior<StressManagementController.Command> create(String configFilename) {
+      return Behaviors.setup(context -> new StressManagementController(context, configFilename));
     }
   /* 
   ------------------------------------------------------------------------
@@ -193,6 +206,12 @@ public class StressManagementController extends AbstractBehavior<StressManagemen
     private StressManagementController onPostStop() {
       getContext().getLog().info("Controller shutting down");
       return this;
+  }
+
+  public static class ControllerConfig {
+    public String contextEngineCfgName;
+    public String detectionEngineCfgName;
+    public String recommendationEngineCfgName;
   }
 
 }

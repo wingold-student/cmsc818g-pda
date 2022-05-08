@@ -1,0 +1,3 @@
+detectionEngineCfgName: configs/detectionEngine.yml
+recommendationEngineCfgName: configs/recommendationEngine.yml
+contextEngineCfgName: configs/contextEngine.yml
