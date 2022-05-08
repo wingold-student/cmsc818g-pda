@@ -183,8 +183,6 @@ public class BloodPressureReporter extends Reporter {
                 ));
             }
 
-            results.close();
-
             // Tell the Context Engine we've successfully read
             msg.replyTo.tell(new SQLiteHandler.StatusOfRead(true, "Succesfully read row " + msg.rowNumber, myPath));
             
@@ -193,6 +191,9 @@ public class BloodPressureReporter extends Reporter {
             // Tell the Context Engine we had a problem
             msg.replyTo.tell(new SQLiteHandler.StatusOfRead(false, "No results from row " + msg.rowNumber, myPath));
         }
+
+        if (results != null)
+            results.close();
             
         return this;
     }
