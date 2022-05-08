@@ -14,6 +14,7 @@ import com.cmsc818g.StressContextEngine.Reporters.HeartRateReporter;
 import com.cmsc818g.StressContextEngine.Reporters.BusynessReporter;
 import com.cmsc818g.StressContextEngine.Reporters.Reporter;
 import com.cmsc818g.StressContextEngine.Reporters.SchedulerReporter;
+import com.cmsc818g.Utilities.SQLiteHandler;
 import com.fasterxml.jackson.core.exc.StreamReadException;
 import com.fasterxml.jackson.databind.DatabindException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -67,9 +68,9 @@ public class StressContextEngine extends AbstractBehavior<StressContextEngine.Co
       }
     }
     public static final class DatabaseReadStatus implements Command {
-      final Reporter.StatusOfRead status;
+      final SQLiteHandler.StatusOfRead status;
 
-      public DatabaseReadStatus(Reporter.StatusOfRead status) {
+      public DatabaseReadStatus(SQLiteHandler.StatusOfRead status) {
         this.status = status;
       }
     }
@@ -86,7 +87,7 @@ public class StressContextEngine extends AbstractBehavior<StressContextEngine.Co
     }
 
     private final TimerScheduler<Command> timers;
-    private final ActorRef<Reporter.StatusOfRead> statusAdapter;
+    private final ActorRef<SQLiteHandler.StatusOfRead> statusAdapter;
 
     private final HashMap<String, ActorRef<Reporter.Command>> reporters;
 
@@ -105,6 +106,8 @@ public class StressContextEngine extends AbstractBehavior<StressContextEngine.Co
         InputStream cfgFilestream = getClass().getClassLoader().getResourceAsStream(configFilename);
         ContextEngineConfig cfg = yamlReader.readValue(cfgFilestream, ContextEngineConfig.class);
 
+        this.statusAdapter = context.messageAdapter(SQLiteHandler.StatusOfRead.class, DatabaseReadStatus::new);
+
         ActorRef<Reporter.Command> schedulerReporter = context.spawn(SchedulerReporter.create("demo", cfg.Scheduler.dbURI, cfg.Scheduler.table), "Scheduler");
         ServiceKey<Reporter.Command> schedulerKey = ServiceKey.create(Reporter.Command.class, "Scheduler");
         context.getSystem().receptionist().tell(Receptionist.register(schedulerKey, schedulerReporter));
@@ -118,7 +121,14 @@ public class StressContextEngine extends AbstractBehavior<StressContextEngine.Co
         context.watch(busynessReporter);
         
 
-        ActorRef<Reporter.Command> bpReporter = context.spawn(BloodPressureReporter.create(cfg.BloodPressure.dbURI, cfg.BloodPressure.table), "BloodPressure");
+        ActorRef<Reporter.Command> bpReporter = context.spawn(
+          BloodPressureReporter.create(
+            this.statusAdapter,
+            cfg.BloodPressure.dbURI,
+            cfg.BloodPressure.table,
+            cfg.BloodPressure.readRate),
+          "BloodPressure"
+        );
         ServiceKey<Reporter.Command> bpKey = ServiceKey.create(Reporter.Command.class, "BloodPressure");
         context.getSystem().receptionist().tell(Receptionist.register(bpKey, bpReporter));
         reporters.put("BloodPressure", bpReporter);
@@ -142,7 +152,6 @@ public class StressContextEngine extends AbstractBehavior<StressContextEngine.Co
         reporters.put("Location", locationReporter);
         context.watch(locationReporter);
 */
-        this.statusAdapter = context.messageAdapter(Reporter.StatusOfRead.class, DatabaseReadStatus::new);
     }
   
     @Override
