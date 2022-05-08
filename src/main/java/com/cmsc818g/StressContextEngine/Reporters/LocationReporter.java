@@ -151,7 +151,7 @@ public class LocationReporter extends Reporter {
      * @throws ClassNotFoundException if the SQL driver cannot be loaded/found
      * @throws SQLException if there is an issue with SQL query/database
      */
-    private Behavior<Reporter.Command> onReadRowOfData(Reporter.ReadRowOfData msg) throws ClassNotFoundException, SQLException {
+    protected Behavior<Reporter.Command> onReadRowOfData(Reporter.ReadRowOfData msg) throws ClassNotFoundException, SQLException {
         // Used for messages later
         ActorPath myPath = getContext().getSelf().path();
 

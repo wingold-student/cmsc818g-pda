@@ -344,7 +344,7 @@ public class SchedulerReporter extends Reporter {
     }
 
 
-    private Behavior<Reporter.Command> onReadRowOfData(ReadRowOfData msg) throws ClassNotFoundException, SQLException {
+    protected Behavior<Reporter.Command> onReadRowOfData(ReadRowOfData msg) throws ClassNotFoundException, SQLException {
         CalendarData calendar = calendars.get(this.calendarDemoName);
         ActorPath myPath = getContext().getSelf().path();
 

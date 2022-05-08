@@ -166,7 +166,7 @@ public class BusynessReporter extends Reporter {
             .build();
     }
 
-    private Behavior<Reporter.Command> onReadRowOfData(Reporter.ReadRowOfData msg) throws ClassNotFoundException, SQLException {
+    protected Behavior<Reporter.Command> onReadRowOfData(Reporter.ReadRowOfData msg) throws ClassNotFoundException, SQLException {
         ActorPath myPath = getContext().getSelf().path();
 
         List<String> columnHeaders = List.of(

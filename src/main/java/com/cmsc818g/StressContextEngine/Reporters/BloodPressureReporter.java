@@ -149,7 +149,7 @@ public class BloodPressureReporter extends Reporter {
      * @throws ClassNotFoundException
      * @throws Exception
      */
-    private Behavior<Reporter.Command> onReadRowOfData(Reporter.ReadRowOfData msg) throws ClassNotFoundException, SQLException {
+    protected Behavior<Reporter.Command> onReadRowOfData(Reporter.ReadRowOfData msg) throws ClassNotFoundException, SQLException {
         ActorPath myPath = getContext().getSelf().path();
 
         // Query itself with variables to be filled

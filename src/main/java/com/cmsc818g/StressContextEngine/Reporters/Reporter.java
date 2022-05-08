@@ -133,4 +133,6 @@ public abstract class Reporter extends AbstractBehavior<Reporter.Command> {
 
         return results;
     }
+
+    protected abstract Behavior<Reporter.Command> onReadRowOfData(ReadRowOfData msg)  throws ClassNotFoundException, SQLException;
 }
