@@ -1,12 +1,9 @@
 package com.cmsc818g.StressContextEngine;
 
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 
 import com.cmsc818g.StressManagementController;
 import com.cmsc818g.StressContextEngine.Reporters.BloodPressureReporter;
@@ -33,7 +30,6 @@ import akka.actor.typed.javadsl.AbstractBehavior;
 import akka.actor.typed.javadsl.ActorContext;
 import akka.actor.typed.javadsl.Behaviors;
 import akka.actor.typed.javadsl.Receive;
-import akka.actor.typed.javadsl.TimerScheduler;
 import akka.actor.typed.receptionist.Receptionist;
 import akka.actor.typed.receptionist.ServiceKey;
 
@@ -74,26 +70,20 @@ public class StressContextEngine extends AbstractBehavior<StressContextEngine.Co
     public static Behavior<Command> create(String databaseURI, String tableName, String configFilename) {
         return Behaviors.<Command>supervise(
             Behaviors.setup(context ->
-              Behaviors.withTimers(
-                timers -> new StressContextEngine(context, timers, databaseURI, tableName, configFilename)
-            )
+              new StressContextEngine(context, databaseURI, tableName, configFilename)
           )
         )
         .onFailure(ClassNotFoundException.class, SupervisorStrategy.stop());
     }
 
-    private final TimerScheduler<Command> timers;
     private final ActorRef<SQLiteHandler.StatusOfRead> statusAdapter;
 
     private final HashMap<String, ActorRef<Reporter.Command>> reporters;
 
-    private final String periodicReporterTimer = "reporterReading";
-
-    public StressContextEngine(ActorContext<Command> context, TimerScheduler<Command> timers, String databaseURI, String tableName, String configFilename) throws StreamReadException, DatabindException, IOException {
+    public StressContextEngine(ActorContext<Command> context, String databaseURI, String tableName, String configFilename) throws StreamReadException, DatabindException, IOException {
         super(context);
         getContext().getLog().info("context engine actor created");
 
-        this.timers = timers;
         this.reporters = new HashMap<>();
 
         ObjectMapper yamlReader = new ObjectMapper(new YAMLFactory());
