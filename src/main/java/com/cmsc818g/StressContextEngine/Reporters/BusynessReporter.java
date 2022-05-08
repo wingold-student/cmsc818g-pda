@@ -1,18 +1,25 @@
 package com.cmsc818g.StressContextEngine.Reporters;
 
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.List;
 import java.util.Optional;
 
+import com.cmsc818g.Utilities.SQLiteHandler;
+
+import akka.actor.typed.javadsl.TimerScheduler;
+import akka.actor.ActorPath;
 import akka.actor.typed.ActorRef;
 import akka.actor.typed.Behavior;
 import akka.actor.typed.PostStop;
-import akka.actor.typed.javadsl.AbstractBehavior;
+import akka.actor.typed.SupervisorStrategy;
 import akka.actor.typed.javadsl.ActorContext;
 import akka.actor.typed.javadsl.Behaviors;
 import akka.actor.typed.javadsl.Receive;
 import akka.http.javadsl.model.DateTime;
 import akka.pattern.StatusReply;
 
-public class BusynessReporter extends AbstractBehavior<Reporter.Command> {
+public class BusynessReporter extends Reporter {
     /************************************* 
      * MESSAGES IT RECEIVES 
      *************************************/
@@ -99,17 +106,39 @@ public class BusynessReporter extends AbstractBehavior<Reporter.Command> {
      * CREATION 
      *************************************/
 
-    public static Behavior<Reporter.Command> create(ActorRef<Reporter.Command> schedulerReporter) {
-        return Behaviors.setup(context -> new BusynessReporter(context, schedulerReporter));
+    public static Behavior<Reporter.Command> create(
+                                                    ActorRef<SQLiteHandler.StatusOfRead> statusListener,
+                                                    String databaseURI,
+                                                    String tableName,
+                                                    int readRate,
+                                                    ActorRef<Reporter.Command> schedulerReporter
+    ) {
+        return Behaviors.<Reporter.Command>supervise(
+            Behaviors.setup(
+                context -> 
+                Behaviors.withTimers(
+                    timers -> new BusynessReporter(context, timers, statusListener, databaseURI, tableName, readRate, schedulerReporter)
+                )
+            )
+        ).onFailure(SQLException.class, SupervisorStrategy.resume());
     }
 
+    private static final String periodicTimerName = "busy-periodic";
     private ActorRef<Reporter.Command> schedulerReporter;
     private ActorRef<SchedulerReporter.Response> schedulerAdapter;
     private ActorRef<SchedulerReporter.UpdateEventResponse> updateEventAdapter;
     private Optional<BusynessReading> lastReading;
 
-    public BusynessReporter(ActorContext<Reporter.Command> context, ActorRef<Reporter.Command> schedulerReporter) {
-        super(context);
+    public BusynessReporter(ActorContext<Reporter.Command> context,
+                            TimerScheduler<Reporter.Command> timers,
+                            ActorRef<SQLiteHandler.StatusOfRead> statusListener,
+                            String databaseURI,
+                            String tableName,
+                            int readRate,
+                            ActorRef<Reporter.Command> schedulerReporter
+    ) {
+
+        super(context, timers, periodicTimerName, statusListener, databaseURI, tableName, readRate);
         this.schedulerReporter = schedulerReporter;
 
         this.schedulerAdapter = context.messageAdapter(SchedulerReporter.Response.class, WrappedSchedulerResponse::new);
@@ -135,8 +164,33 @@ public class BusynessReporter extends AbstractBehavior<Reporter.Command> {
             .build();
     }
 
-    private Behavior<Reporter.Command> onReadRowOfData(Reporter.ReadRowOfData msg) {
-        msg.replyTo.tell(new Reporter.StatusOfRead(true, "I did nothing...", getContext().getSelf().path()));
+    private Behavior<Reporter.Command> onReadRowOfData(Reporter.ReadRowOfData msg) throws ClassNotFoundException, SQLException {
+        ActorPath myPath = getContext().getSelf().path();
+
+        List<String> columnHeaders = List.of(
+            "id",
+            "busyness"
+        );
+
+        ResultSet results = queryDB(columnHeaders, myPath, msg.rowNumber);
+
+        if (results.next()) {
+            Optional<Integer> busyLevel = Optional.ofNullable(results.getInt("busyness"));
+
+            if (busyLevel.isPresent()) {
+                BusynessReading reading = new BusynessReading(busyLevel);
+                this.lastReading = Optional.of(reading);
+            }
+
+            msg.replyTo.tell(new SQLiteHandler.StatusOfRead(true, "Succesfully read row " + msg.rowNumber, myPath));
+        } else {
+
+            msg.replyTo.tell(new SQLiteHandler.StatusOfRead(false, "No results from row " + msg.rowNumber, myPath));
+        }
+
+        if (results != null)
+            results.close();
+
         return this;
     }
 
@@ -183,7 +237,11 @@ public class BusynessReporter extends AbstractBehavior<Reporter.Command> {
     }
 
     public class BusynessReading {
-        public int level;
+        public Optional<Integer> level;
+
+        public BusynessReading(Optional<Integer> busyLevel) {
+            this.level = busyLevel;
+        }
     }
 
 }
