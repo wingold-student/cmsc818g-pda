@@ -28,35 +28,39 @@ class KNN:
     def __init__(self):
         pass
 
-    # print(sys.argv[0],sys.argv[1],sys.argv[2],sys.argv[3],sys.argv[4]) # sleep-hour, busyness, bp-systolic, bp-diastolic, heart-rate
-    # health_data = {sys.argv[0],sys.argv[1],sys.argv[2],sys.argv[3],sys.argv[4]}
-    # # 1,3,2,132,80,79,3
-    # health_data = (np.array([[3,2,132,80,79],[0,0,0,0,0]]))
-    # cur_data = pd.DataFrame (health_data)
-    # dataset = pd.read_csv('src/main/resources/knn_data.csv', index_col="id")
-    # datatop = dataset.head()
-    # # print(datatop)
+    # print(sys.argv[1],sys.argv[2],sys.argv[3],sys.argv[4],sys.argv[5]) # sleep-hour, busyness, bp-systolic, bp-diastolic, heart-rate
+    cur_sleep = int(sys.argv[1])
+    cur_busy = int(sys.argv[2])
+    cur_bp_sys = int(sys.argv[3])
+    cur_bp_dia = int(sys.argv[4])
+    cur_hr = int(sys.argv[5])
+    health_data = (np.array([[cur_sleep, cur_busy, cur_bp_sys, cur_bp_dia, cur_hr]]))
+    cur_data = pd.DataFrame (health_data)
+    dataset = pd.read_csv('src/main/resources/knn_data.csv', index_col="id")
+    datatop = dataset.head()
+    # print(datatop)
   
-    # X = dataset.iloc[:, [1,2,3,4,5]].values # splits the data and make separate array X to hold attributes.
-    # y = dataset.iloc[:, -1].values  # splits the data and makes a separate array y to hold corresponding labels.
-    # # print(X.shape)
-    # # print(y.shape)
-    # # X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.02, random_state=0) # training 80%, testing 20%
-    # k_split = 220   
-    # X_train = X[:k_split]
-    # y_train = y[:k_split]
-    # # X_test = X[k_split:]
-    # # y_test = y[k_split:]
-    # X_test = health_data[0:]
-    # y_test = health_data[0:]
+    X = dataset.iloc[:, [1,2,3,4,5]].values # splits the data and make separate array X to hold attributes.
+    y = dataset.iloc[:, -1].values  # splits the data and makes a separate array y to hold corresponding labels.
+    # print(X.shape)
+    # print(y.shape)
+    # X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.03, random_state=0) # training 80%, testing 20%
+    k_split = 221   
+    X_train = X[:k_split]
+    y_train = y[:k_split]
+    # X_test = X[k_split:]
+    # y_test = y[k_split:]
+    # print(y[k_split:])
+    X_test = health_data[0:]
+    y_test = health_data[0:]
 
-    # ##### KNN regression #####
-    # reg = KNeighborsRegressor(n_neighbors = 3)
-    # reg.fit(X_train, y_train)
-    # y_pred = reg.predict(X_test)
-    # # y_pred = cross_val_predict(reg, X, y, cv=5)
-    # #print(y_pred.round(0))
-
+    ##### KNN regression #####
+    reg = KNeighborsRegressor(n_neighbors = 3)
+    reg.fit(X_train, y_train)
+    y_pred = reg.predict(X_test)
+    # y_pred = cross_val_predict(reg, X, y, cv=5)
+    #print(y_pred.round(0))
+    print(y_pred)
     # score = reg.score(X_test, y_test)
     # print("score", score)
     
@@ -144,7 +148,7 @@ class File_setting:
         return level
           
     import csv
-    filepath = 'src/main/resources/dailyData.csv'
+    filepath = 'src/main/resources/data_tables/dailyData.csv'
     header = []
     target = []
     heartrate = []
