@@ -1,24 +1,22 @@
 package com.cmsc818g.StressContextEngine.Reporters;
 
-import java.sql.Connection;
-import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.List;
 import java.util.Optional;
 
-import org.slf4j.Logger;
+import com.cmsc818g.Utilities.SQLiteHandler;
 
 import akka.actor.ActorPath;
 import akka.actor.typed.SupervisorStrategy;
 import akka.actor.typed.ActorRef;
 import akka.actor.typed.Behavior;
 import akka.actor.typed.PostStop;
-import akka.actor.typed.javadsl.AbstractBehavior;
 import akka.actor.typed.javadsl.ActorContext;
 import akka.actor.typed.javadsl.Behaviors;
 import akka.actor.typed.javadsl.Receive;
+import akka.actor.typed.javadsl.TimerScheduler;
 import akka.actor.typed.pubsub.Topic;
-import akka.http.javadsl.model.DateTime;
 
 
 // Following BloodPressureReporter as a template
@@ -30,7 +28,7 @@ import akka.http.javadsl.model.DateTime;
  * ease since all reporters will be reading from a database. By engines/others,
  * it should be reached out to via `HeartRateReporter.Command`s.
  */
-public class HeartRateReporter extends AbstractBehavior<Reporter.Command> {
+public class HeartRateReporter extends Reporter {
     /************************************* 
      * MESSAGES IT RECEIVES 
      *************************************/
@@ -90,16 +88,23 @@ public class HeartRateReporter extends AbstractBehavior<Reporter.Command> {
      * @param tableName Name of the table it should read from in the database
      * @return Behavior that it will take Reporter.Commands (or BloodPressureReporter.Commands)
      */
-    public static Behavior<Reporter.Command> create(String databaseURI, String tableName) {
+    public static Behavior<Reporter.Command> create(
+                                                ActorRef<SQLiteHandler.StatusOfRead> statusListener,
+                                                String databaseURI,
+                                                String tableName,
+                                                int readRate)
+    {
         return Behaviors.<Reporter.Command>supervise(
             Behaviors.setup(
-                context -> new HeartRateReporter(context, databaseURI, tableName)
+                context -> 
+                Behaviors.withTimers(
+                    timers -> new HeartRateReporter(context, timers, statusListener, databaseURI, tableName, readRate)
+                )
             )
         ).onFailure(SQLException.class, SupervisorStrategy.resume());
     }
 
-    private final String databaseURI;
-    private final String tableName;
+    private static final String periodicTimerName = "hr-periodic";
     private Optional<HeartRate> lastReading;
     private final ActorRef<Topic.Command<HeartRateReading>> hrTopic;
 
@@ -111,10 +116,15 @@ public class HeartRateReporter extends AbstractBehavior<Reporter.Command> {
      * @param databaseURI URI to the database to read from for blood pressure
      * @param tableName Table in the database to use
      */
-    private HeartRateReporter(ActorContext<Reporter.Command> context, String databaseURI, String tableName) {
-        super(context);
-        this.databaseURI = databaseURI;
-        this.tableName = tableName;
+    private HeartRateReporter(ActorContext<Reporter.Command> context,
+                            TimerScheduler<Reporter.Command> timers,
+                            ActorRef<SQLiteHandler.StatusOfRead> statusListener,
+                            String databaseURI,
+                            String tableName,
+                            int readRate)
+    {
+        super(context, timers, periodicTimerName, statusListener, databaseURI, tableName, readRate);
+
         this.lastReading = Optional.empty();
         this.hrTopic = context.spawn(Topic.create(HeartRateReading.class, "hr-topic"), "hr-topic");
     }
@@ -130,6 +140,8 @@ public class HeartRateReporter extends AbstractBehavior<Reporter.Command> {
             .onMessage(ReadHeartRate.class, this::onReadHeartRate)
             .onMessage(Subscribe.class, this::onSubscribe)
             .onMessage(Unsubscribe.class, this::onUnsubscribe)
+            .onMessage(StartReading.class, this::onStartReading)
+            .onMessage(StopReading.class, this::onStopReading)
             .onSignal(PostStop.class, signal -> onPostStop())
             .build();
     }
@@ -144,76 +156,59 @@ public class HeartRateReporter extends AbstractBehavior<Reporter.Command> {
      */
     private Behavior<Reporter.Command> onReadRowOfData(Reporter.ReadRowOfData msg) throws ClassNotFoundException, SQLException {
         // Used for messages later
-        Logger logger = getContext().getLog();
         ActorPath myPath = getContext().getSelf().path();
 
-        // Forms a connection to the database
-        Connection conn = Reporter.connectToDB(this.databaseURI, logger, msg.replyTo, myPath);
+        // Query itself with variables to be filled
+        List<String> columnHeaders = List.of(
+            "id",
+            "time",
+            "heart-rate"
+        );
 
-        try {
-            // Query itself with variables to be filled
-            String query = "SELECT id, DateTime, Heartbeat FROM " + this.tableName + " WHERE id = ?";
+        ResultSet results = queryDB(columnHeaders, myPath, msg.rowNumber);
 
-            // Form a statement and fill in the variables
-            PreparedStatement statement;
-            statement = conn.prepareStatement(query);
-            statement.setInt(1, msg.rowNumber); // `id` is the only variable ( ? )
+        // Need to call `.next()` as the iterator starts before the data
+        // If no data, then it will return null
+        if (results.next()) {
 
-            ResultSet results = Reporter.queryDB(this.databaseURI, statement, logger, msg.replyTo, myPath);
+            // The cell in the database can be empty/null
+            Optional<Integer> reading = Optional.ofNullable(results.getInt("heart-beat"));
 
-            // Need to call `.next()` as the iterator starts before the data
-            // If no data, then it will return null
-            if (results.next()) {
+            // Not expecting DateTime to not exist though, so can just get it
+            Optional<String> readingTime = Optional.ofNullable(results.getString("time"));
 
-                // The cell in the database can be empty/null
-                Optional<String> reading = Optional.ofNullable(results.getString("Heartbeat"));
+            // Convert into DateTime, could fail, hence `Optional`
+            // Optional<DateTime> readingTime = DateTime.fromIsoDateTimeString(dateTimeStr);
 
-                // Not expecting DateTime to not exist though, so can just get it
-                String dateTimeStr = results.getString("DateTime");
-
-                // Convert into DateTime, could fail, hence `Optional`
-                Optional<DateTime> readingTime = DateTime.fromIsoDateTimeString(dateTimeStr);
-
-                // Create the latest reading only if all data is there
-                if (reading.isPresent() && readingTime.isPresent()) {
-                    String hr_value = reading.get();
-                    
-                    // Is immutable, can both lastReading and the topic can have this
-                    HeartRate hr = new HeartRate(readingTime, hr_value);
-                    this.lastReading = Optional.of(hr);
-
-                    // Publish the heartrate out
-                    this.hrTopic.tell(
-                        Topic.publish(
-                            new HeartRateReading(
-                                Optional.of(hr)
-                            )
-                        )
-                    );
-                }
-
-                results.close();
-
-                // Tell the Context Engine we've successfully read
-                msg.replyTo.tell(new Reporter.StatusOfRead(true, "Succesfully read row " + msg.rowNumber, myPath));
+            // Create the latest reading only if all data is there
+            if (reading.isPresent()) {
+                Integer hr_value = reading.get();
                 
-            } else {
+                // Is immutable, can both lastReading and the topic can have this
+                HeartRate hr = new HeartRate(readingTime, hr_value);
+                this.lastReading = Optional.of(hr);
 
-                // Tell the Context Engine we had a problem
-                msg.replyTo.tell(new Reporter.StatusOfRead(false, "No results from row " + msg.rowNumber, myPath));
+                // Publish the heartrate out
+                this.hrTopic.tell(
+                    Topic.publish(
+                        new HeartRateReading(
+                            Optional.of(hr)
+                        )
+                    )
+                );
             }
+
+            // Tell the Context Engine we've successfully read
+            msg.replyTo.tell(new SQLiteHandler.StatusOfRead(true, "Succesfully read row " + msg.rowNumber, myPath));
             
-        conn.close();
+        } else {
 
-        } catch (SQLException e) {
             // Tell the Context Engine we had a problem
-            String errorMsg = "Failed to prepare statement";
-            msg.replyTo.tell(new Reporter.StatusOfRead(false, errorMsg, myPath));
-
-            // Throwing it because it'll log this way. And we could handle differently
-            // later if we want
-            throw e;
+            msg.replyTo.tell(new SQLiteHandler.StatusOfRead(false, "No results from row " + msg.rowNumber, myPath));
         }
+
+        if (results != null)
+            results.close();
 
         return this;
     }
@@ -255,12 +250,12 @@ public class HeartRateReporter extends AbstractBehavior<Reporter.Command> {
      * HELPER CLASSES
      *************************************/
     public class HeartRate {
-        final Optional<DateTime> readingTime;
+        final Optional<String> readingTime;
         final int heartrate;
 
-        public HeartRate(Optional<DateTime> readingTime, String value) {
+        public HeartRate(Optional<String> readingTime, int hr_value) {
             this.readingTime = readingTime;
-            this.heartrate = Integer.parseInt(value);
+            this.heartrate = hr_value;
         }
 
         public int getheartrate(){
