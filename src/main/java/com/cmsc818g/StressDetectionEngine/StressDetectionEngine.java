@@ -5,10 +5,17 @@ import java.util.ArrayList;
 import java.util.Optional;
 import java.io.InputStreamReader;
 import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+
 import com.cmsc818g.StressManagementController;
 import com.cmsc818g.StressContextEngine.Reporters.*;
 import com.cmsc818g.StressContextEngine.Reporters.Reporter;
 import com.cmsc818g.StressDetectionEngine.DetectionMetricsAggregator.*;
+import com.fasterxml.jackson.core.exc.StreamReadException;
+import com.fasterxml.jackson.databind.DatabindException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 
 import akka.actor.typed.ActorRef;
 import akka.actor.typed.Behavior;
@@ -62,37 +69,37 @@ public class StressDetectionEngine extends AbstractBehavior<StressDetectionEngin
      * CREATION 
      *************************************/
 
-    public static Behavior<Command> create() {
-        return Behaviors.setup(context -> new StressDetectionEngine(context));
+    public static Behavior<Command> create(String configFilename) {
+        return Behaviors.setup(context -> new StressDetectionEngine(context, configFilename));
     }
 
     private final ActorRef<DetectionMetricsAggregator.Command> aggregator;
     private final ActorRef<DetectionMetricsAggregator.AggregatedStressMetrics> aggregatorAdapter;
 
-    public StressDetectionEngine(ActorContext<Command> context) {
+    public StressDetectionEngine(ActorContext<Command> context, String configFilename) throws StreamReadException, DatabindException, IOException {
         super(context);
         context.getLog().info("context engine actor created");
 
+        ObjectMapper yamlReader = new ObjectMapper(new YAMLFactory());
+        InputStream cfgFilestream = getClass().getClassLoader().getResourceAsStream(configFilename);
+        DetectionConfig cfg = yamlReader.readValue(cfgFilestream, DetectionConfig.class);
+        context.getLog().info("HR Count: {}", cfg.detectionMetricsCounts.hrCount);
+
         // TODO: Temporary
-        DetectionMetricsConfig config = new DetectionMetricsConfig(
+        DetectionMetricsConfig metricsConfig = new DetectionMetricsConfig(
+            cfg.detectionMetricsCounts,
             null,
             null,
             null,
             null,
             null,
-            null,
-            1,
-            1,
-            1,
-            1,
-            1,
-            1 
+            null
         );
 
         this.aggregatorAdapter = context.messageAdapter(DetectionMetricsAggregator.AggregatedStressMetrics.class, AdaptedAggreatedMetrics::new);
 
         // TODO: Note this starts it immediately
-        this.aggregator = context.spawn(DetectionMetricsAggregator.create(this.aggregatorAdapter, config), "DetectionAggregator");
+        this.aggregator = context.spawn(DetectionMetricsAggregator.create(this.aggregatorAdapter, metricsConfig), "DetectionAggregator");
     }
   
 
@@ -208,4 +215,42 @@ public class StressDetectionEngine extends AbstractBehavior<StressDetectionEngin
     /************************************* 
      * HELPER CLASSES
      *************************************/
+    public static class DetectionMetricsCounts {
+        public int bpCount;
+        public int hrCount;
+        public int sleepCount;
+        public int locCount;
+        public int busyCount;
+        public int medicalCount;
+    }
+    public static class DetectionConfig {
+      public DetectionMetricsCounts detectionMetricsCounts;
+    }
+    public static class DetectionMetricsConfig {
+        public final DetectionMetricsCounts countCfg;
+        public final ActorRef<BloodPressureReporter.Command> bpReporter;
+        public final ActorRef<HeartRateReporter.Command> hrReporter;
+        public final ActorRef<SleepReporter.Command> sleepReporter;
+        public final ActorRef<LocationReporter.Command> locReporter;
+        public final ActorRef<BusynessReporter.Command> busyReporter;
+        public final ActorRef<MedicalHistoryReporter.Command> medicalReporter;
+
+        public DetectionMetricsConfig(
+            DetectionMetricsCounts countCfg,
+            ActorRef<BloodPressureReporter.Command> bpReporter,
+            ActorRef<HeartRateReporter.Command> hrReporter,
+            ActorRef<SleepReporter.Command> sleepReporter,
+            ActorRef<LocationReporter.Command> locReporter,
+            ActorRef<BusynessReporter.Command> busyReporter,
+            ActorRef<MedicalHistoryReporter.Command> medicalReporter
+        ) {
+            this.countCfg = countCfg;
+            this.bpReporter = bpReporter;
+            this.hrReporter = hrReporter;
+            this.sleepReporter = sleepReporter;
+            this.locReporter = locReporter;
+            this.busyReporter = busyReporter;
+            this.medicalReporter = medicalReporter;
+        }
+    }
 }

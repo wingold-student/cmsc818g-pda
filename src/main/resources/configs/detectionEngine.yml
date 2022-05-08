@@ -1,13 +1,7 @@
-detectionMetricsConfig:
-  - name: HeartRate
-    count: 1
-  - name: BloodPressure
-    count: 1
-  - name: Sleep
-    count: 1
-  - name: Location
-    count: 1
-  - name: Busyness
-    count: 1
-  - name: MedicalHistory
-    count: 0
+detectionMetricsCounts:
+  hrCount: 1
+  bpCount: 1
+  sleepCount: 1
+  locCount: 1
+  busyCount: 1
+  medicalCount: 0

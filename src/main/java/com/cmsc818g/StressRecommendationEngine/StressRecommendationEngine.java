@@ -1,13 +1,20 @@
 package com.cmsc818g.StressRecommendationEngine;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Optional;
 
 import com.cmsc818g.StressManagementController;
+import com.cmsc818g.StressContextEngine.Reporters.LocationReporter;
+import com.cmsc818g.StressContextEngine.Reporters.SleepReporter;
 import com.cmsc818g.StressContextEngine.Reporters.LocationReporter.UserLocation;
 import com.cmsc818g.StressContextEngine.Reporters.SleepReporter.SleepHours;
 import com.cmsc818g.StressRecommendationEngine.RecommendationMetricsAggregator.AggregatedRecommendationMetrics;
-import com.cmsc818g.StressRecommendationEngine.RecommendationMetricsAggregator.RecommendationMetricsConfig;
+import com.fasterxml.jackson.core.exc.StreamReadException;
+import com.fasterxml.jackson.databind.DatabindException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 
 import akka.actor.typed.ActorRef;
 import akka.actor.typed.Behavior;
@@ -74,8 +81,8 @@ public class StressRecommendationEngine extends AbstractBehavior<StressRecommend
     /************************************* 
      * CREATION 
      *************************************/
-    public static Behavior<Command> create() {
-      return Behaviors.setup(context -> new StressRecommendationEngine(context));
+    public static Behavior<Command> create(String configFilename) {
+      return Behaviors.setup(context -> new StressRecommendationEngine(context, configFilename));
     }
 
     private final ActorRef<RecommendationMetricsAggregator.Command> aggregator;
@@ -85,16 +92,20 @@ public class StressRecommendationEngine extends AbstractBehavior<StressRecommend
     private Optional<UserLocation> locReading;
     private boolean haveMetrics = false;
 
-    public StressRecommendationEngine(ActorContext<Command> context) {
+    public StressRecommendationEngine(ActorContext<Command> context, String configFilename) throws StreamReadException, DatabindException, IOException {
         super(context);
         getContext().getLog().info("Recommendation Engine actor created"); 
 
+        ObjectMapper yamlReader = new ObjectMapper(new YAMLFactory());
+        InputStream cfgFilestream = getClass().getClassLoader().getResourceAsStream(configFilename);
+        RecommendationConfig cfg = yamlReader.readValue(cfgFilestream, RecommendationConfig.class);
+
         // TODO: Temporary
         RecommendationMetricsConfig config = new RecommendationMetricsConfig(
+          cfg.detectionMetricsCounts,
           null,
-          null,
-          1,
-          1);
+          null
+          );
         
         this.aggregatorAdapter = context.messageAdapter(RecommendationMetricsAggregator.AggregatedRecommendationMetrics.class, AdaptedAggreatedMetrics::new);
 
@@ -153,5 +164,31 @@ public class StressRecommendationEngine extends AbstractBehavior<StressRecommend
      * HELPER FUNCTIONS
      *************************************/
 
+    /************************************* 
+     * HELPER CLASSES
+     *************************************/
+    public static class RecommendationMetricsCounts {
+        public int sleepCount;
+        public int locCount;
+    }
+    public static class RecommendationConfig {
+      public RecommendationMetricsCounts detectionMetricsCounts;
+    }
+    public static class RecommendationMetricsConfig {
+        public final ActorRef<SleepReporter.Command> sleepReporter;
+        public final ActorRef<LocationReporter.Command> locReporter;
+
+        public final RecommendationMetricsCounts countCfg;
+
+        public RecommendationMetricsConfig(
+            RecommendationMetricsCounts countCfg,
+            ActorRef<SleepReporter.Command> sleepReporter,
+            ActorRef<LocationReporter.Command> locReporter
+        ) {
+            this.countCfg = countCfg;
+            this.sleepReporter = sleepReporter;
+            this.locReporter = locReporter;
+        }
+    }
 
 }

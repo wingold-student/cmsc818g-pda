@@ -1,5 +1,3 @@
-recommendationMetricsConfig:
-  - name: Sleep
-    count: 1
-  - name: Location
-    count: 1
+recommendationMetricsCounts:
+  sleepCount: 1
+  locCount: 1

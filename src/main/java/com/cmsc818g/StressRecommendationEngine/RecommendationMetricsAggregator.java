@@ -10,6 +10,7 @@ import com.cmsc818g.StressContextEngine.Reporters.LocationReporter.LocationReadi
 import com.cmsc818g.StressContextEngine.Reporters.LocationReporter.UserLocation;
 import com.cmsc818g.StressContextEngine.Reporters.SleepReporter.SleepHours;
 import com.cmsc818g.StressContextEngine.Reporters.SleepReporter.SleepHoursReading;
+import com.cmsc818g.StressRecommendationEngine.StressRecommendationEngine.RecommendationMetricsConfig;
 
 import akka.actor.typed.ActorRef;
 import akka.actor.typed.Behavior;
@@ -134,8 +135,8 @@ public class RecommendationMetricsAggregator extends AbstractBehavior<Recommenda
      * HELPER FUNCTIONS
      *************************************/
     private void sendDataIfComplete() {
-        if (sleepCount >= config.sleepCount &&
-                locCount >= config.locCount) {
+        if (sleepCount >= config.countCfg.sleepCount &&
+                locCount >= config.countCfg.locCount) {
 
             // TODO: Could just stop the aggregator and respawn on need
             sleepCount = 0;
@@ -148,23 +149,4 @@ public class RecommendationMetricsAggregator extends AbstractBehavior<Recommenda
     /************************************* 
      * HELPER CLASSES
      *************************************/
-    public static class RecommendationMetricsConfig {
-        public final ActorRef<SleepReporter.Command> sleepReporter;
-        public final ActorRef<LocationReporter.Command> locReporter;
-
-        public final int sleepCount;
-        public final int locCount;
-
-        public RecommendationMetricsConfig(
-            ActorRef<SleepReporter.Command> sleepReporter,
-            ActorRef<LocationReporter.Command> locReporter,
-            int sleepCount,
-            int locCount
-        ) {
-            this.sleepReporter = sleepReporter;
-            this.locReporter = locReporter;
-            this.sleepCount = sleepCount;
-            this.locCount = locCount;
-        }
-    }
 }

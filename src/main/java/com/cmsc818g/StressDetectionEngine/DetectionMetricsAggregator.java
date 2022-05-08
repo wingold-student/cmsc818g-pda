@@ -17,6 +17,7 @@ import com.cmsc818g.StressContextEngine.Reporters.MedicalHistoryReporter.QueryRe
 import com.cmsc818g.StressContextEngine.Reporters.SchedulerReporter.CurrentEventResponse;
 import com.cmsc818g.StressContextEngine.Reporters.SleepReporter.SleepHours;
 import com.cmsc818g.StressContextEngine.Reporters.SleepReporter.SleepHoursReading;
+import com.cmsc818g.StressDetectionEngine.StressDetectionEngine.DetectionMetricsConfig;
 
 import akka.actor.typed.ActorRef;
 import akka.actor.typed.Behavior;
@@ -246,12 +247,12 @@ public class DetectionMetricsAggregator extends AbstractBehavior<DetectionMetric
      * HELPER FUNCTIONS
      *************************************/
     private void sendDataIfComplete() {
-        if (bpCount >= config.bpCount &&
-                hrCount >= config.hrCount &&
-                sleepCount >= config.sleepCount &&
-                busyCount >= config.busyCount &&
-                locCount >= config.locCount &&
-                medicalCount >= config.medicalCount) {
+        if (bpCount >= config.countCfg.bpCount &&
+                hrCount >= config.countCfg.hrCount &&
+                sleepCount >= config.countCfg.sleepCount &&
+                busyCount >= config.countCfg.busyCount &&
+                locCount >= config.countCfg.locCount &&
+                medicalCount >= config.countCfg.medicalCount) {
 
             // TODO: Could just stop the aggregator and respawn on need
             bpCount = 0;
@@ -267,48 +268,5 @@ public class DetectionMetricsAggregator extends AbstractBehavior<DetectionMetric
     /************************************* 
      * HELPER CLASSES
      *************************************/
-    public static class DetectionMetricsConfig {
-        public final ActorRef<BloodPressureReporter.Command> bpReporter;
-        public final ActorRef<HeartRateReporter.Command> hrReporter;
-        public final ActorRef<SleepReporter.Command> sleepReporter;
-        public final ActorRef<LocationReporter.Command> locReporter;
-        public final ActorRef<BusynessReporter.Command> busyReporter;
-        public final ActorRef<MedicalHistoryReporter.Command> medicalReporter;
 
-        public final int bpCount;
-        public final int hrCount;
-        public final int sleepCount;
-        public final int locCount;
-        public final int busyCount;
-        public final  int medicalCount;
-
-        public DetectionMetricsConfig(
-            ActorRef<BloodPressureReporter.Command> bpReporter,
-            ActorRef<HeartRateReporter.Command> hrReporter,
-            ActorRef<SleepReporter.Command> sleepReporter,
-            ActorRef<LocationReporter.Command> locReporter,
-            ActorRef<BusynessReporter.Command> busyReporter,
-            ActorRef<MedicalHistoryReporter.Command> medicalReporter,
-            int bpCount,
-            int hrCount,
-            int sleepCount,
-            int locCount,
-            int busyCount,
-            int medicalCount
-        ) {
-            this.bpReporter = bpReporter;
-            this.hrReporter = hrReporter;
-            this.sleepReporter = sleepReporter;
-            this.locReporter = locReporter;
-            this.busyReporter = busyReporter;
-            this.medicalReporter = medicalReporter;
-
-            this.bpCount = bpCount;
-            this.hrCount = hrCount;
-            this.sleepCount = sleepCount;
-            this.locCount = locCount;
-            this.busyCount = busyCount;
-            this.medicalCount = medicalCount;
-        }
-    }
 }

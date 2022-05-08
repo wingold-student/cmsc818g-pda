@@ -49,7 +49,6 @@ public class StressManagementController extends AbstractBehavior<StressManagemen
         InputStream is = getClass().getClassLoader().getResourceAsStream(configFilename);
         ObjectMapper yamlReader = new ObjectMapper(new YAMLFactory());
         ControllerConfig cfg = yamlReader.readValue(is, ControllerConfig.class);
-        context.getLog().info("Context engine: {}", cfg.contextEngineCfgName);
 
         /* Entity Manager gets/spawns Entities 
           child_EntityManager = context.spawn(StressEntityManager.create(), "StressEntityManager");
@@ -63,10 +62,10 @@ public class StressManagementController extends AbstractBehavior<StressManagemen
         //Read Entity Data
         child_ContextEngine.tell(new StressContextEngine.StartPeriodicDatabaseReading(Duration.ofSeconds(1L)));
 
-        child_DetectionEngine = context.spawn(StressDetectionEngine.create(), "spawn");
+        child_DetectionEngine = context.spawn(StressDetectionEngine.create(cfg.detectionEngineCfgName), "spawn");
         context.watch(child_DetectionEngine);
 
-        child_RecommendEngine = context.spawn(StressRecommendationEngine.create(), "StressRecommendEngine");
+        child_RecommendEngine = context.spawn(StressRecommendationEngine.create(cfg.recommendationEngineCfgName), "StressRecommendEngine");
         context.watch(child_RecommendEngine);
 
         child_UIManager = context.spawn(StressUIManager.create(), "StressUIManager");
