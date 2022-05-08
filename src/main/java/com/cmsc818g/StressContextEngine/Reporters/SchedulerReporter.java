@@ -356,7 +356,7 @@ public class SchedulerReporter extends Reporter {
 
         ResultSet results = queryDB(columnHeaders, myPath, msg.rowNumber);
 
-        if (results.next()) {
+        if (results != null && results.next()) {
             Optional<String> eventName = Optional.ofNullable(results.getString("Schedule"));
             String dateTimeStr = results.getString("DateTime");
             Optional<DateTime> eventTime = DateTime.fromIsoDateTimeString(dateTimeStr);
@@ -379,6 +379,7 @@ public class SchedulerReporter extends Reporter {
             }
             
         } else {
+            this.curEvent = Optional.empty();
             msg.replyTo.tell(new SQLiteHandler.StatusOfRead(false, "No results from row " + msg.rowNumber, myPath));
         }
 

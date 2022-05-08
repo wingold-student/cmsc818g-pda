@@ -163,7 +163,7 @@ public class SleepReporter extends Reporter {
 
         // Need to call `.next()` as the iterator starts before the data
         // If no data, then it will return null
-        if (results.next()) {
+        if (results != null && results.next()) {
 
             // The cell in the database can be empty/null
             Optional<Integer> reading = Optional.ofNullable(results.getInt("sleep"));
@@ -183,19 +183,20 @@ public class SleepReporter extends Reporter {
                     new SleepHoursReading(Optional.of(sleepValue))
                 ));
                 */
+                // Tell the Context Engine we've successfully read
+                msg.replyTo.tell(new SQLiteHandler.StatusOfRead(true, "Succesfully read row " + msg.rowNumber, myPath));
+            } else {
+                this.lastReading = Optional.empty();
             }
-
-            results.close();
-
-            // Tell the Context Engine we've successfully read
-            msg.replyTo.tell(new SQLiteHandler.StatusOfRead(true, "Succesfully read row " + msg.rowNumber, myPath));
             
         } else {
-
+            this.lastReading = Optional.empty();
             // Tell the Context Engine we had a problem
             msg.replyTo.tell(new SQLiteHandler.StatusOfRead(false, "No results from row " + msg.rowNumber, myPath));
         }
             
+        if (results != null)
+            results.close();
 
         return this;
     }

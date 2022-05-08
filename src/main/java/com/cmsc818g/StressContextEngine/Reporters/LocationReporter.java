@@ -165,7 +165,7 @@ public class LocationReporter extends Reporter {
 
         // Need to call `.next()` as the iterator starts before the data
         // If no data, then it will return null
-        if (results.next()) {
+        if (results != null && results.next()) {
 
             // The cell in the database can be empty/null
             Optional<String> reading = Optional.ofNullable(results.getString("location"));
@@ -193,7 +193,7 @@ public class LocationReporter extends Reporter {
             }
             
         } else {
-
+            this.lastReading = Optional.empty();
             // Tell the Context Engine we had a problem
             msg.replyTo.tell(new SQLiteHandler.StatusOfRead(false, "No results from row " + msg.rowNumber, myPath));
         }
