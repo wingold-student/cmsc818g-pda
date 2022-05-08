@@ -7,9 +7,12 @@ import java.sql.SQLException;
 import java.time.Duration;
 import java.time.format.DateTimeParseException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Optional;
 
 import com.cmsc818g.StressEntityManager.Entities.CalendarCommand;
+import com.cmsc818g.Utilities.SQLiteHandler;
+import com.cmsc818g.Utilities.SQLiteHandler.StatusOfRead;
 
 import org.slf4j.Logger;
 
@@ -23,12 +26,13 @@ import akka.actor.typed.javadsl.AbstractBehavior;
 import akka.actor.typed.javadsl.ActorContext;
 import akka.actor.typed.javadsl.Behaviors;
 import akka.actor.typed.javadsl.Receive;
+import akka.actor.typed.javadsl.TimerScheduler;
 import akka.actor.typed.pubsub.Topic;
 import akka.http.javadsl.model.DateTime;
 import akka.pattern.StatusReply;
 
 // AbstractBehavior<What type of messages it will receive>
-public class SchedulerReporter extends AbstractBehavior<Reporter.Command> implements Reporter {
+public class SchedulerReporter extends Reporter {
 
     /************************************* 
      * MESSAGES IT RECEIVES 
@@ -238,16 +242,31 @@ public class SchedulerReporter extends AbstractBehavior<Reporter.Command> implem
      * Here we're watching for if a SQLException occurs, which will log it for us and simply resume.
      * It resumes since it likely isn't a killer exception.
      */
-    public static Behavior<Reporter.Command> create(String calendarName, String calendarDBURI, String calendarTableName) {
+    public static Behavior<Reporter.Command> create(ActorRef<SQLiteHandler.StatusOfRead> statusListener,
+                                                    String databaseURI,
+                                                    String tableName,
+                                                    int readRate,
+                                                    String calendarName)
+    {
         // return Behaviors.setup(context -> new SchedulerReporter(context, calendarName, calendarDBURI, calendarTableName));
         return Behaviors.<Reporter.Command>supervise(
             Behaviors.setup(
-                context -> new SchedulerReporter(context, calendarName, calendarDBURI, calendarTableName)
+                context -> 
+                Behaviors.withTimers(
+                    timers -> new SchedulerReporter(context,
+                                                    timers,
+                                                    statusListener,
+                                                    databaseURI,
+                                                    tableName,
+                                                    readRate,
+                                                    calendarName)
+                )
             )
         ).onFailure(SQLException.class, SupervisorStrategy.resume());
     }
 
     // Just some instance variables
+    private static final String periodicTimerName = "scheduler-periodic";
     private Optional<CalendarEvent> curEvent;
     private HashMap<String, CalendarData> calendars;
     private final String calendarDemoName;
@@ -256,13 +275,20 @@ public class SchedulerReporter extends AbstractBehavior<Reporter.Command> implem
     /**
      * Constructor for this actor
      */
-    private SchedulerReporter(ActorContext<Reporter.Command> context, String calendarName, String calendarDBURI, String calendarTableName) {
-        super(context);
+    private SchedulerReporter(ActorContext<Reporter.Command> context,
+                              TimerScheduler<Reporter.Command> timers,
+                              ActorRef<SQLiteHandler.StatusOfRead> statusListener,
+                              String databaseURI,
+                              String tableName,
+                              int readRate,
+                              String calendarName)
+    {
+        super(context, timers, periodicTimerName, statusListener, databaseURI, tableName, readRate);
         this.curEvent = Optional.empty();
         calendars = new HashMap<>();
 
         this.calendarDemoName = calendarName;
-        CalendarData originalCalendar = new CalendarData(calendarName, calendarDBURI, calendarTableName);
+        CalendarData originalCalendar = new CalendarData(calendarName, databaseURI, tableName);
         calendars.put(calendarName, originalCalendar);
 
         this.curEventTopic = context.spawn(Topic.create(CurrentEventResponse.class, "curevent-topic"), "curevent-topic");
@@ -319,6 +345,8 @@ public class SchedulerReporter extends AbstractBehavior<Reporter.Command> implem
             .onMessage(GetEventsInRange.class, this::onGetEventsInRange)
             .onMessage(SubscribeForCurrentEvent.class, this::onSubscribeForCurrentEvent)
             .onMessage(UnsubscribeFromCurrentEvent.class, this::onUnsubscribeFromCurrentEvent)
+            .onMessage(StartReading.class, this::onStartReading)
+            .onMessage(StopReading.class, this::onStopReading)
             .onSignal(PostStop.class, signal -> onPostStop())
             .build();
     }
@@ -326,53 +354,45 @@ public class SchedulerReporter extends AbstractBehavior<Reporter.Command> implem
 
     private Behavior<Reporter.Command> onReadRowOfData(ReadRowOfData msg) throws ClassNotFoundException, SQLException {
         CalendarData calendar = calendars.get(this.calendarDemoName);
-        Logger logger = getContext().getLog();
         ActorPath myPath = getContext().getSelf().path();
 
-        Connection conn = Reporter.connectToDB(calendar.databaseURI, logger, msg.replyTo, myPath);
+        List<String> columnHeaders = List.of(
+            "id",
+            "time",
+            "event"
+        );
 
-        try {
-            String query = "SELECT id, DateTime, Schedule FROM " + calendar.tableName + " WHERE id = ?";
-            PreparedStatement statement;
-            statement = conn.prepareStatement(query);
-            statement.setInt(1, msg.rowNumber);
+        ResultSet results = queryDB(columnHeaders, myPath, msg.rowNumber);
 
-            ResultSet results = Reporter.queryDB(calendar.databaseURI, statement, logger, msg.replyTo, myPath);
+        if (results.next()) {
+            Optional<String> eventName = Optional.ofNullable(results.getString("Schedule"));
+            String dateTimeStr = results.getString("DateTime");
+            Optional<DateTime> eventTime = DateTime.fromIsoDateTimeString(dateTimeStr);
 
-            if (results.next()) {
-                Optional<String> eventName = Optional.ofNullable(results.getString("Schedule"));
-                String dateTimeStr = results.getString("DateTime");
-                Optional<DateTime> eventTime = DateTime.fromIsoDateTimeString(dateTimeStr);
+            if (eventName.isPresent() && eventTime.isPresent()) {
+                Duration tmpDuration = Duration.ofMinutes(30L); // TODO: TEMPORARY
+                Optional.of(Duration.ofDays(1));
 
-                if (eventName.isPresent() && eventTime.isPresent()) {
-                    Duration tmpDuration = Duration.ofMinutes(30L); // TODO: TEMPORARY
-                    Optional.of(Duration.ofDays(1));
+                // Can share event because it is immutable
+                CalendarEvent event = new CalendarEvent(eventName.get(), eventTime.get(), tmpDuration, "");
 
-                    // Can share event because it is immutable
-                    CalendarEvent event = new CalendarEvent(eventName.get(), eventTime.get(), tmpDuration, "");
+                this.curEvent = Optional.of(event);
+                this.curEventTopic.tell(Topic.publish(
+                    new CurrentEventResponse(Optional.of(event))
+                ));
 
-                    this.curEvent = Optional.of(event);
-                    this.curEventTopic.tell(Topic.publish(
-                        new CurrentEventResponse(Optional.of(event))
-                    ));
-                }
-
-                results.close();
-                msg.replyTo.tell(new Reporter.StatusOfRead(true, "Succesfully read row " + msg.rowNumber, myPath));
-
-                
+                msg.replyTo.tell(new SQLiteHandler.StatusOfRead(true, "Succesfully read row " + msg.rowNumber, myPath));
             } else {
-                msg.replyTo.tell(new Reporter.StatusOfRead(false, "No results from row " + msg.rowNumber, myPath));
+                this.curEvent = Optional.empty();
             }
             
-        conn.close();
-
-        } catch (SQLException e) {
-            String errorMsg = "Failed to prepare statement";
-            msg.replyTo.tell(new Reporter.StatusOfRead(false, errorMsg, myPath));
-            throw e;
+        } else {
+            msg.replyTo.tell(new SQLiteHandler.StatusOfRead(false, "No results from row " + msg.rowNumber, myPath));
         }
 
+        if (results != null)
+            results.close();
+            
         return this;
     }
 
