@@ -1,32 +1,28 @@
 package com.cmsc818g.StressContextEngine.Reporters;
 
+import java.util.List;
 import java.util.Optional;
 
-import java.sql.Connection;
-import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.Optional;
 
-import org.slf4j.Logger;
 
-import com.cmsc818g.StressRecommendationEngine.StressRecommendationEngine;
+import com.cmsc818g.Utilities.SQLiteHandler;
 
 import akka.actor.ActorPath;
 import akka.actor.typed.SupervisorStrategy;
 import akka.actor.typed.ActorRef;
 import akka.actor.typed.Behavior;
 import akka.actor.typed.PostStop;
-import akka.actor.typed.javadsl.AbstractBehavior;
 import akka.actor.typed.javadsl.ActorContext;
 import akka.actor.typed.javadsl.Behaviors;
 import akka.actor.typed.javadsl.Receive;
+import akka.actor.typed.javadsl.TimerScheduler;
 import akka.actor.typed.pubsub.Topic;
-import akka.http.javadsl.model.DateTime;
 
-public class LocationReporter extends AbstractBehavior<Reporter.Command>{
+public class LocationReporter extends Reporter {
 
-        /************************************* 
+    /************************************* 
      * MESSAGES IT RECEIVES 
      *************************************/
     public interface Command extends Reporter.Command {}
@@ -85,16 +81,27 @@ public class LocationReporter extends AbstractBehavior<Reporter.Command>{
      * @param tableName Name of the table it should read from in the database
      * @return Behavior that it will take Reporter.Commands (or BloodPressureReporter.Commands)
      */
-    public static Behavior<Reporter.Command> create(String databaseURI, String tableName) {
+    public static Behavior<Reporter.Command> create(ActorRef<SQLiteHandler.StatusOfRead> statusListener,
+                                                    String databaseURI,
+                                                    String tableName,
+                                                    int readRate
+    ) {
         return Behaviors.<Reporter.Command>supervise(
             Behaviors.setup(
-                context -> new LocationReporter(context, databaseURI, tableName)
-            )
+                context -> 
+                Behaviors.withTimers(
+                    timers -> new LocationReporter(context,
+                                                   timers,
+                                                   statusListener,
+                                                   databaseURI,
+                                                   tableName,
+                                                   readRate)
+                )
+            )       
         ).onFailure(SQLException.class, SupervisorStrategy.resume());
     }
 
-    private final String databaseURI;
-    private final String tableName;
+    private static final String periodicTimerName = "loc-periodic";
     private Optional<UserLocation> lastReading;
     private final ActorRef<Topic.Command<LocationReading>> locTopic;
 
@@ -106,10 +113,15 @@ public class LocationReporter extends AbstractBehavior<Reporter.Command>{
      * @param databaseURI URI to the database to read from for blood pressure
      * @param tableName Table in the database to use
      */
-    private LocationReporter(ActorContext<Reporter.Command> context, String databaseURI, String tableName) {
-        super(context);
-        this.databaseURI = databaseURI;
-        this.tableName = tableName;
+    private LocationReporter(ActorContext<Reporter.Command> context,
+                            TimerScheduler<Reporter.Command> timers,
+                            ActorRef<SQLiteHandler.StatusOfRead> statusListener,
+                            String databaseURI,
+                            String tableName,
+                            int readRate
+    ) {
+        super(context, timers, periodicTimerName, statusListener, databaseURI, tableName, readRate);
+
         this.lastReading = Optional.empty();
         this.locTopic = context.spawn(Topic.create(LocationReading.class, "loc-topic"), "loc-topic");
     }
@@ -125,6 +137,8 @@ public class LocationReporter extends AbstractBehavior<Reporter.Command>{
             .onMessage(ReadLocation.class, this::onReadLocation)
             .onMessage(Subscribe.class, this::onSubscribe)
             .onMessage(Unsubscribe.class, this::onUnsubscribe)
+            .onMessage(StartReading.class, this::onStartReading)
+            .onMessage(StopReading.class, this::onStopReading)
             .onSignal(PostStop.class, signal -> onPostStop())
             .build();
     }
@@ -139,71 +153,53 @@ public class LocationReporter extends AbstractBehavior<Reporter.Command>{
      */
     private Behavior<Reporter.Command> onReadRowOfData(Reporter.ReadRowOfData msg) throws ClassNotFoundException, SQLException {
         // Used for messages later
-        Logger logger = getContext().getLog();
         ActorPath myPath = getContext().getSelf().path();
 
-        // Forms a connection to the database
-        Connection conn = Reporter.connectToDB(this.databaseURI, logger, msg.replyTo, myPath);
+        List<String> columnHeaders = List.of(
+            "id",
+            "time",
+            "location"
+        );
 
-        try {
-            // Query itself with variables to be filled
-            String query = "SELECT id, DateTime, Location FROM " + this.tableName + " WHERE id = ?";
+        ResultSet results = queryDB(columnHeaders, myPath, msg.rowNumber);
 
-            // Form a statement and fill in the variables
-            PreparedStatement statement;
-            statement = conn.prepareStatement(query);
-            statement.setInt(1, msg.rowNumber); // `id` is the only variable ( ? )
+        // Need to call `.next()` as the iterator starts before the data
+        // If no data, then it will return null
+        if (results.next()) {
 
-            ResultSet results = Reporter.queryDB(this.databaseURI, statement, logger, msg.replyTo, myPath);
+            // The cell in the database can be empty/null
+            Optional<String> reading = Optional.ofNullable(results.getString("location"));
 
-            // Need to call `.next()` as the iterator starts before the data
-            // If no data, then it will return null
-            if (results.next()) {
+            // Not expecting DateTime to not exist though, so can just get it
+            Optional<String> readingTime = Optional.ofNullable(results.getString("time"));
 
-                // The cell in the database can be empty/null
-                Optional<String> reading = Optional.ofNullable(results.getString("Location"));
+            // Create the latest reading only if all data is there
+            if (reading.isPresent()) {
+                String locationString = reading.get();
 
-                // Not expecting DateTime to not exist though, so can just get it
-                String dateTimeStr = results.getString("DateTime");
+                // UserLocation is immutable, so both can share this object
+                UserLocation locValue = new UserLocation(readingTime, locationString);
 
-                // Convert into DateTime, could fail, hence `Optional`
-                Optional<DateTime> readingTime = DateTime.fromIsoDateTimeString(dateTimeStr);
-
-                // Create the latest reading only if all data is there
-                if (reading.isPresent() && readingTime.isPresent()) {
-                    Optional<String> locationString = Optional.ofNullable(reading.get());
-
-                    // UserLocation is immutable, so both can share this object
-                    UserLocation locValue = new UserLocation(readingTime, locationString);
-
-                    this.lastReading = Optional.of(locValue);
-                    this.locTopic.tell(Topic.publish(
-                        new LocationReading(Optional.of(locValue))
-                    ));
-                }
-
-                results.close();
+                this.lastReading = Optional.of(locValue);
+                this.locTopic.tell(Topic.publish(
+                    new LocationReading(Optional.of(locValue))
+                ));
 
                 // Tell the Context Engine we've successfully read
-                msg.replyTo.tell(new Reporter.StatusOfRead(true, "Succesfully read row " + msg.rowNumber, myPath));
-                
-            } else {
+                msg.replyTo.tell(new SQLiteHandler.StatusOfRead(true, "Succesfully read row " + msg.rowNumber, myPath));
 
-                // Tell the Context Engine we had a problem
-                msg.replyTo.tell(new Reporter.StatusOfRead(false, "No results from row " + msg.rowNumber, myPath));
+            } else {
+                this.lastReading = Optional.empty();
             }
             
-        conn.close();
+        } else {
 
-        } catch (SQLException e) {
             // Tell the Context Engine we had a problem
-            String errorMsg = "Failed to prepare statement";
-            msg.replyTo.tell(new Reporter.StatusOfRead(false, errorMsg, myPath));
-
-            // Throwing it because it'll log this way. And we could handle differently
-            // later if we want
-            throw e;
+            msg.replyTo.tell(new SQLiteHandler.StatusOfRead(false, "No results from row " + msg.rowNumber, myPath));
         }
+
+        if (results != null)
+            results.close();
 
         return this;
     }
@@ -245,10 +241,10 @@ public class LocationReporter extends AbstractBehavior<Reporter.Command>{
      * HELPER CLASSES
      *************************************/
     public class UserLocation {
-        final Optional<DateTime> readingTime;
-        final Optional<String> location;
+        final Optional<String> readingTime;
+        final String location;
 
-        public UserLocation(Optional<DateTime> readingTime, Optional<String> location) {
+        public UserLocation(Optional<String> readingTime, String location) {
             this.readingTime = readingTime;
             this.location = location;
         }
