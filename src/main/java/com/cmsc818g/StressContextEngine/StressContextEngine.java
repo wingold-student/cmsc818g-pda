@@ -105,7 +105,7 @@ public class StressContextEngine extends AbstractBehavior<StressContextEngine.Co
         InputStream cfgFilestream = getClass().getClassLoader().getResourceAsStream(configFilename);
         ContextEngineConfig cfg = yamlReader.readValue(cfgFilestream, ContextEngineConfig.class);
 
-        ActorRef<Reporter.Command> schedulerReporter = context.spawn(SchedulerReporter.create("demo", databaseURI, tableName), "Scheduler");
+        ActorRef<Reporter.Command> schedulerReporter = context.spawn(SchedulerReporter.create("demo", cfg.Scheduler.dbURI, cfg.Scheduler.table), "Scheduler");
         ServiceKey<Reporter.Command> schedulerKey = ServiceKey.create(Reporter.Command.class, "Scheduler");
         context.getSystem().receptionist().tell(Receptionist.register(schedulerKey, schedulerReporter));
         reporters.put("Scheduler", schedulerReporter);
@@ -118,13 +118,13 @@ public class StressContextEngine extends AbstractBehavior<StressContextEngine.Co
         context.watch(busynessReporter);
         
 
-        ActorRef<Reporter.Command> bpReporter = context.spawn(BloodPressureReporter.create(databaseURI, tableName), "BloodPressure");
+        ActorRef<Reporter.Command> bpReporter = context.spawn(BloodPressureReporter.create(cfg.BloodPressure.dbURI, cfg.BloodPressure.table), "BloodPressure");
         ServiceKey<Reporter.Command> bpKey = ServiceKey.create(Reporter.Command.class, "BloodPressure");
         context.getSystem().receptionist().tell(Receptionist.register(bpKey, bpReporter));
         reporters.put("BloodPressure", bpReporter);
         context.watch(bpReporter);
 
-        ActorRef<Reporter.Command> heartReporter = context.spawn(HeartRateReporter.create(databaseURI, tableName), "HeartRate");
+        ActorRef<Reporter.Command> heartReporter = context.spawn(HeartRateReporter.create(cfg.HeartRate.dbURI, cfg.HeartRate.table), "HeartRate");
         ServiceKey<Reporter.Command> hrKey = ServiceKey.create(Reporter.Command.class, "HeartRate");
         context.getSystem().receptionist().tell(Receptionist.register(hrKey, heartReporter));
         reporters.put("HeartRate", heartReporter);
@@ -214,13 +214,17 @@ public class StressContextEngine extends AbstractBehavior<StressContextEngine.Co
 
     public static class ReporterConfig
     {
-      public String name;
       public String dbURI;
       public String table;
       public int readRate;
     }
     public static class ContextEngineConfig
     {
-      public List<ReporterConfig> reporterConfigs;
+      public ReporterConfig HeartRate;
+      public ReporterConfig BloodPressure;
+      public ReporterConfig Sleep;
+      public ReporterConfig Busyness;
+      public ReporterConfig Location;
+      public ReporterConfig Scheduler;
     }
 }

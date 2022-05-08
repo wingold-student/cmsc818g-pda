@@ -1,25 +1,25 @@
 reporters:
-  - name: HeartRate
+  HeartRate:
     dbURI: jdbc:sqlite:src/main/resources/EntityDB.db
     table: SmartWatch
     readRate: 2
-  - name: Sleep
+  Sleep:
     dbURI: jdbc:sqlite:src/main/resources/EntityDB.db
     table: SmartWatch
     readRate: 2
-  - name: BloodPressure
+  BloodPressure:
     dbURI: jdbc:sqlite:src/main/resources/EntityDB.db
     table: BloodPressureCuff
     readRate: 2
-  - name: Location
+  Location:
     dbURI: jdbc:sqlite:src/main/resources/EntityDB.db
     table: Phone
     readRate: 2
-  - name: Busyness
+  Busyness:
     dbURI: jdbc:sqlite:src/main/resources/EntityDB.db
     table: Phone
     readRate: 2
-  - name: Scheduler
+  Scheduler:
     dbURI: jdbc:sqlite:src/main/resources/EntityDB.db
     table: Phone
     readRate: 2
