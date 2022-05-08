@@ -124,14 +124,14 @@ public class StressDetectionEngine extends AbstractBehavior<StressDetectionEngin
             reporterRefs.get("Medical") 
         );
 
-        this.aggregator = getContext().spawn(DetectionMetricsAggregator.create(this.aggregatorAdapter, metricsConfig), "DetectionAggregator");
+        // this.aggregator = getContext().spawn(DetectionMetricsAggregator.create(this.aggregatorAdapter, metricsConfig), "DetectionAggregator");
 
         // TODO: Move into Measurement Process (since need to wait for results)
-        int detected_level = knnPrediction(); //stress detection + measurement process
+        // int detected_level = knnPrediction(); //stress detection + measurement process
 
-        getContext().getLog().info("Detection engine's stress level: "+ detected_level); 
+        // getContext().getLog().info("Detection engine's stress level: "+ detected_level); 
 
-        response.replyTo.tell(new StressManagementController.DetectionEngineToController("healthInfo", detected_level));       
+        // response.replyTo.tell(new StressManagementController.DetectionEngineToController("healthInfo", detected_level));       
       }
       return this;
     }
