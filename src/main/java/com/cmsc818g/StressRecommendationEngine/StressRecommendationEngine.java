@@ -137,14 +137,14 @@ public class StressRecommendationEngine extends AbstractBehavior<StressRecommend
           //recommend treatment     
 
           RecommendationMetricsConfig config = new RecommendationMetricsConfig(
-            cfg.detectionMetricsCounts,
+            cfg.recommendationMetricsCounts,
             reporterRefs.get("Sleep"),
             reporterRefs.get("Location") 
             );
           
 
           // TODO: Note this starts it immediately
-          this.aggregator = getContext().spawn(RecommendationMetricsAggregator.create(config, this.aggregatorAdapter), "RecommednationAggregator");
+          // this.aggregator = getContext().spawn(RecommendationMetricsAggregator.create(config, this.aggregatorAdapter), "RecommednationAggregator");
 
           // TODO: Would want to move this to when results are actually ready
           response.replyTo.tell(new StressManagementController.RecommendEngineToController("recommendation")); 
@@ -191,7 +191,7 @@ public class StressRecommendationEngine extends AbstractBehavior<StressRecommend
         public int locCount;
     }
     public static class RecommendationConfig {
-      public RecommendationMetricsCounts detectionMetricsCounts;
+      public RecommendationMetricsCounts recommendationMetricsCounts;
     }
     public static class RecommendationMetricsConfig {
         public final ActorRef<Reporter.Command> sleepReporter;
