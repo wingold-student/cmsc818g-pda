@@ -65,7 +65,7 @@ public class WebRoutes {
             ),
             path("actor", () ->
                 get(() ->
-                respondWithHeader(RawHeader.create("Access-Control-Allow-Origin", "http://localhost:8080"), () -> 
+                respondWithHeader(RawHeader.create("Access-Control-Allow-Origin", "*"), () -> 
                     onSuccess(getTestJSON(),
                         data -> complete(StatusCodes.OK, data, Jackson.marshaller()))
                     )
