@@ -11,9 +11,11 @@ import java.util.List;
 import com.cmsc818g.StressManagementController;
 import com.cmsc818g.StressContextEngine.Reporters.BloodPressureReporter;
 import com.cmsc818g.StressContextEngine.Reporters.HeartRateReporter;
+import com.cmsc818g.StressContextEngine.Reporters.LocationReporter;
 import com.cmsc818g.StressContextEngine.Reporters.BusynessReporter;
 import com.cmsc818g.StressContextEngine.Reporters.Reporter;
 import com.cmsc818g.StressContextEngine.Reporters.SchedulerReporter;
+import com.cmsc818g.StressContextEngine.Reporters.SleepReporter;
 import com.cmsc818g.Utilities.SQLiteHandler;
 import com.fasterxml.jackson.core.exc.StreamReadException;
 import com.fasterxml.jackson.databind.DatabindException;
@@ -108,13 +110,29 @@ public class StressContextEngine extends AbstractBehavior<StressContextEngine.Co
 
         this.statusAdapter = context.messageAdapter(SQLiteHandler.StatusOfRead.class, DatabaseReadStatus::new);
 
-        ActorRef<Reporter.Command> schedulerReporter = context.spawn(SchedulerReporter.create("demo", cfg.Scheduler.dbURI, cfg.Scheduler.table), "Scheduler");
+        ActorRef<Reporter.Command> schedulerReporter = context.spawn(
+          SchedulerReporter.create(
+            this.statusAdapter,
+            cfg.Scheduler.dbURI,
+            cfg.Scheduler.table,
+            cfg.Scheduler.readRate,
+            "DemoCalendar"), // Not really used for the moment
+          "Scheduler"
+        );
         ServiceKey<Reporter.Command> schedulerKey = ServiceKey.create(Reporter.Command.class, "Scheduler");
         context.getSystem().receptionist().tell(Receptionist.register(schedulerKey, schedulerReporter));
         reporters.put("Scheduler", schedulerReporter);
         context.watch(schedulerReporter);
 
-        ActorRef<Reporter.Command> busynessReporter = context.spawn(BusynessReporter.create(schedulerReporter), "Busyness");
+        ActorRef<Reporter.Command> busynessReporter = context.spawn(
+          BusynessReporter.create(
+            this.statusAdapter,
+            cfg.Busyness.dbURI,
+            cfg.Busyness.table,
+            cfg.Busyness.readRate,
+            schedulerReporter),
+        "Busyness"
+        );
         ServiceKey<Reporter.Command> busyKey = ServiceKey.create(Reporter.Command.class, "Busyness");
         context.getSystem().receptionist().tell(Receptionist.register(busyKey, busynessReporter));
         reporters.put("Busyness", busynessReporter);
@@ -127,31 +145,51 @@ public class StressContextEngine extends AbstractBehavior<StressContextEngine.Co
             cfg.BloodPressure.dbURI,
             cfg.BloodPressure.table,
             cfg.BloodPressure.readRate),
-          "BloodPressure"
+        "BloodPressure"
         );
         ServiceKey<Reporter.Command> bpKey = ServiceKey.create(Reporter.Command.class, "BloodPressure");
         context.getSystem().receptionist().tell(Receptionist.register(bpKey, bpReporter));
         reporters.put("BloodPressure", bpReporter);
         context.watch(bpReporter);
 
-        ActorRef<Reporter.Command> heartReporter = context.spawn(HeartRateReporter.create(cfg.HeartRate.dbURI, cfg.HeartRate.table), "HeartRate");
+        ActorRef<Reporter.Command> heartReporter = context.spawn(
+          HeartRateReporter.create(
+            this.statusAdapter,
+            cfg.HeartRate.dbURI,
+            cfg.HeartRate.table,
+            cfg.HeartRate.readRate),
+        "HeartRate"
+        );
         ServiceKey<Reporter.Command> hrKey = ServiceKey.create(Reporter.Command.class, "HeartRate");
         context.getSystem().receptionist().tell(Receptionist.register(hrKey, heartReporter));
         reporters.put("HeartRate", heartReporter);
         context.watch(heartReporter);
-/*
-        ActorRef<Reporter.Command> sleepReporter = context.spawn(SleepReporter.create(databaseURI, tableName), "SleepHours");
-        ServiceKey<Reporter.Command> sleepKey = ServiceKey.create(Reporter.Command.class, "SleepHours");
+
+        ActorRef<Reporter.Command> sleepReporter = context.spawn(
+          SleepReporter.create(
+            this.statusAdapter,
+            cfg.Sleep.dbURI,
+            cfg.Sleep.table,
+            cfg.Sleep.readRate),
+      "Sleep"
+        );
+        ServiceKey<Reporter.Command> sleepKey = ServiceKey.create(Reporter.Command.class, "Sleep");
         context.getSystem().receptionist().tell(Receptionist.register(sleepKey, sleepReporter));
-        reporters.put("BloodPressure", sleepReporter);
+        reporters.put("Sleep", sleepReporter);
         context.watch(sleepReporter);
 
-        ActorRef<Reporter.Command> locationReporter = context.spawn(LocationReporter.create(databaseURI, tableName), "Location");
+        ActorRef<Reporter.Command> locationReporter = context.spawn(
+          LocationReporter.create(
+            this.statusAdapter,
+            cfg.Location.dbURI,
+            cfg.Location.table,
+            cfg.Location.readRate), 
+        "Location"
+        );
         ServiceKey<Reporter.Command> locationKey = ServiceKey.create(Reporter.Command.class, "Location");
         context.getSystem().receptionist().tell(Receptionist.register(locationKey, sleepReporter));
         reporters.put("Location", locationReporter);
         context.watch(locationReporter);
-*/
     }
   
     @Override
