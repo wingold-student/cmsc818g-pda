@@ -26,7 +26,6 @@ import akka.actor.typed.javadsl.AbstractBehavior;
 import akka.actor.typed.javadsl.ActorContext;
 import akka.actor.typed.javadsl.Behaviors;
 import akka.actor.typed.javadsl.Receive;
-import akka.http.impl.engine.server.GracefulTerminatorStage;
 
 public class DetectionMetricsAggregator extends AbstractBehavior<DetectionMetricsAggregator.Command> {
     /************************************* 
@@ -243,9 +242,9 @@ public class DetectionMetricsAggregator extends AbstractBehavior<DetectionMetric
         return this;
     }
 
-    private DetectionMetricsAggregator onGracefulShutdown(GracefulShutdown msg) {
-        getContext().stop(getContext().getSelf());
-        return this;
+    private Behavior<Command> onGracefulShutdown(GracefulShutdown msg) {
+        Cleanup();
+        return Behaviors.stopped();
     }
 
     public DetectionMetricsAggregator onPostStop() {
@@ -283,6 +282,12 @@ public class DetectionMetricsAggregator extends AbstractBehavior<DetectionMetric
         this.config.bpReporter.tell(new BloodPressureReporter.Unsubscribe(this.bpAdapter));
         this.config.hrReporter.tell(new HeartRateReporter.Unsubscribe(this.hrAdapter));
         this.config.locReporter.tell(new LocationReporter.Unsubscribe(this.locAdapter));
+        getContext().stop(this.bpAdapter);
+        getContext().stop(this.hrAdapter);
+        getContext().stop(this.locAdapter);
+        getContext().stop(this.medicalAdapter);
+        getContext().stop(this.sleepAdapter);
+        getContext().stop(this.busyAdapter);
     }
     /************************************* 
      * HELPER CLASSES
