@@ -12,6 +12,7 @@ import com.cmsc818g.StressManagementController;
 import com.cmsc818g.StressContextEngine.Reporters.BloodPressureReporter;
 import com.cmsc818g.StressContextEngine.Reporters.HeartRateReporter;
 import com.cmsc818g.StressContextEngine.Reporters.LocationReporter;
+import com.cmsc818g.StressContextEngine.Reporters.MedicalHistoryReporter;
 import com.cmsc818g.StressContextEngine.Reporters.BusynessReporter;
 import com.cmsc818g.StressContextEngine.Reporters.Reporter;
 import com.cmsc818g.StressContextEngine.Reporters.SchedulerReporter;
@@ -50,25 +51,18 @@ public class StressContextEngine extends AbstractBehavior<StressContextEngine.Co
         }
       }//end of class contextEngineGreet
 
-    public static final class StartPeriodicDatabaseReading implements Command {
-      final Duration interval;
+    public static class TellAllReportersToReadRow implements Command {
+      public final int rowToRead;
 
-      public StartPeriodicDatabaseReading(Duration interval) {
-        this.interval = interval;
-      }
-    }
-
-    public static final class StopPeriodicDatabaseReading implements Command {
-      public StopPeriodicDatabaseReading() {}
-    }
-
-    public static final class TellAllReportersToRead implements Command {
-      final int rowToRead;
-
-      public TellAllReportersToRead(int rowToRead) {
+      public TellAllReportersToReadRow(int rowToRead) {
         this.rowToRead = rowToRead;
       }
     }
+
+    public static enum TellAllReportersToPeriodicallyRead implements Command {
+      INSTANCE
+    }
+
     public static final class DatabaseReadStatus implements Command {
       final SQLiteHandler.StatusOfRead status;
 
@@ -93,7 +87,6 @@ public class StressContextEngine extends AbstractBehavior<StressContextEngine.Co
 
     private final HashMap<String, ActorRef<Reporter.Command>> reporters;
 
-    private int currentRowNumber; // TODO: Temporary whilst all reporters reading at same speed
     private final String periodicReporterTimer = "reporterReading";
 
     public StressContextEngine(ActorContext<Command> context, TimerScheduler<Command> timers, String databaseURI, String tableName, String configFilename) throws StreamReadException, DatabindException, IOException {
@@ -101,7 +94,6 @@ public class StressContextEngine extends AbstractBehavior<StressContextEngine.Co
         getContext().getLog().info("context engine actor created");
 
         this.timers = timers;
-        this.currentRowNumber = 1;
         this.reporters = new HashMap<>();
 
         ObjectMapper yamlReader = new ObjectMapper(new YAMLFactory());
@@ -187,45 +179,49 @@ public class StressContextEngine extends AbstractBehavior<StressContextEngine.Co
         "Location"
         );
         ServiceKey<Reporter.Command> locationKey = ServiceKey.create(Reporter.Command.class, "Location");
-        context.getSystem().receptionist().tell(Receptionist.register(locationKey, sleepReporter));
+        context.getSystem().receptionist().tell(Receptionist.register(locationKey, locationReporter));
         reporters.put("Location", locationReporter);
         context.watch(locationReporter);
+
+        ActorRef<Reporter.Command> medicalReporter = context.spawn(
+          MedicalHistoryReporter.create(
+            this.statusAdapter,
+            cfg.Medical.dbURI,
+            cfg.Medical.table,
+            cfg.Medical.readRate), 
+        "MedicalHistory"
+        );
+        ServiceKey<Reporter.Command> medicalKey = ServiceKey.create(Reporter.Command.class, "Medical");
+        context.getSystem().receptionist().tell(Receptionist.register(medicalKey, medicalReporter));
+        reporters.put("Medical", medicalReporter);
+        context.watch(medicalReporter);
     }
   
     @Override
     public Receive<Command> createReceive() {
       return newReceiveBuilder()
         .onMessage(contextEngineGreet.class, this::onEngineResponse)
-        .onMessage(StartPeriodicDatabaseReading.class, this::onStartPeriodicDatabaseReading)
-        .onMessage(StopPeriodicDatabaseReading.class, this::onStopPeriodicDatabaseReading)
-        .onMessage(TellAllReportersToRead.class, this::onTellAllReportersToRead)
+        .onMessage(TellAllReportersToReadRow.class, this::onTellAllReportersToReadRow)
+        .onMessage(TellAllReportersToPeriodicallyRead.class, this::onTellAllReportersToPeriodicallyRead)
         .onMessage(DatabaseReadStatus.class, this::onDatabaseReadStatus)
         .onSignal(ChildFailed.class, signal -> onChildFailed(signal))
         .onSignal(PostStop.class, signal -> onPostStop())
         .build();
     }
 
-    private Behavior<Command> onStartPeriodicDatabaseReading(StartPeriodicDatabaseReading msg) {
-      this.timers.startTimerAtFixedRate(this.periodicReporterTimer, new TellAllReportersToRead(this.currentRowNumber), msg.interval);
-      return this;
-    }
-
-    private Behavior<Command> onStopPeriodicDatabaseReading(StopPeriodicDatabaseReading msg) {
-      if (this.timers.isTimerActive(this.periodicReporterTimer)) {
-        this.timers.cancel(this.periodicReporterTimer);
-      }
-
-      return this;
-    }
-
-    private Behavior<Command> onTellAllReportersToRead(TellAllReportersToRead msg) {
-      final int toReadRow = this.currentRowNumber; // Copy so it doesn't change in the message
-
+    private Behavior<Command> onTellAllReportersToReadRow(TellAllReportersToReadRow msg) {
       this.reporters.forEach((name, reporter) -> {
-        reporter.tell(new Reporter.ReadRowOfData(toReadRow, this.statusAdapter));
+        reporter.tell(new Reporter.ReadRowOfData(msg.rowToRead, this.statusAdapter));
       });
 
-      this.currentRowNumber++;
+      return this;
+    }
+
+    private Behavior<Command> onTellAllReportersToPeriodicallyRead(TellAllReportersToPeriodicallyRead msg) {
+      this.reporters.forEach((name, reporter) -> {
+        reporter.tell(Reporter.StartReading.INSTANCE);
+      });
+
       return this;
     }
 
@@ -236,8 +232,8 @@ public class StressContextEngine extends AbstractBehavior<StressContextEngine.Co
         getContext().getLog().info(message + " : " + msg.status.message);
       } else {
         getContext().getLog().error(message + " : " + msg.status.message);
-        getContext().getSelf().tell(new StopPeriodicDatabaseReading());
       }
+
       return this;
     }
 
@@ -273,5 +269,6 @@ public class StressContextEngine extends AbstractBehavior<StressContextEngine.Co
       public ReporterConfig Busyness;
       public ReporterConfig Location;
       public ReporterConfig Scheduler;
+      public ReporterConfig Medical;
     }
 }
