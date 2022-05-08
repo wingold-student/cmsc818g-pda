@@ -113,11 +113,9 @@ public class StressDetectionEngine extends AbstractBehavior<StressDetectionEngin
     private Behavior<Command> onEngineResponse(detectionEngineGreet response) { 
         //query reporters 
       if(response.message == "detect"){
-        knnPrediction(); //stress detection + measurement process
-        stressMeasurementProcess(); 
-        stressLevel = 3;
-        getContext().getLog().info("Detection engine's stress level: "+ stressLevel); 
-        response.replyTo.tell(new StressManagementController.DetectionEngineToController("healthInfo", stressLevel));       
+        int detected_level = knnPrediction(); //stress detection + measurement process
+        getContext().getLog().info("Detection engine's stress level: "+ detected_level); 
+        response.replyTo.tell(new StressManagementController.DetectionEngineToController("healthInfo", detected_level));       
       }
       return this;
     }
@@ -211,34 +209,45 @@ public class StressDetectionEngine extends AbstractBehavior<StressDetectionEngin
       return this;
     }
 
-    void knnPrediction(){
+    private int knnPrediction(){
         getContext().getLog().info("knn measure started ");
 
         try{
           //ProcessBuilder pb = new ProcessBuilder(Arrays.asList("<Absolute Path to Python>/python", pythonPath));
           String path = "/Users/yoonie/Desktop/test/cmsc818g-pda/src/main/java/com/cmsc818g/KNN.py";
-          ProcessBuilder pb = new ProcessBuilder("python3", path, "3", "1", "120", "80", "80"); // sleep-hour, busyness, bp-systolic, bp-diastolic, heart-rate
+          ProcessBuilder pb = new ProcessBuilder("python3", path, "3", "2", "132", "80", "80"); // sleep-hour, busyness, bp-systolic, bp-diastolic, heart-rate
           Process process = pb.start();
 
           BufferedReader bfr = new BufferedReader(new InputStreamReader(process.getInputStream()));
           String line = "";
-          //System.out.println("Running Python starts: " + line);
-          int exitCode = process.waitFor();
-          //System.out.println("Exit Code : "+exitCode);
+     
+          process.waitFor(); 
           int len;
           if ((len = process.getErrorStream().available()) > 0) {
               byte[] buf = new byte[len];
               process.getErrorStream().read(buf);
-              //System.err.println("Command error:\""+new String(buf)+"\"");
+              System.err.println("Command error:\""+new String(buf)+"\"");
           }
-          //line = bfr.readLine();
-          //System.out.println("First Line: " + line);
-          while ((line = bfr.readLine()) != null){
-              System.out.println("KNN Output: " + line);
-          }
+          line = bfr.readLine();
+          System.out.println("KNN output : " + line); // [2.]
+          String python_output = line;
+
+          return Integer.parseInt(String.valueOf(python_output.charAt(1)));
+
+          //String parser example
+          // char[] char_arr = new char[python_output.length()];
+          // for(int i=0 ; i<char_arr.length ; i++ ){
+          //   char_arr[i] = python_output.charAt(i);
+          //   System.out.println("char_arr[" +i +"]: " + char_arr[i]);
+          // }
+          // return char_arr[1];
+
+          // while ((line = bfr.readLine()) != null){
+          //     System.out.println("KNN Output: " + line);
+          // }
       }catch(Exception e){
           System.out.println(e);
       }
-
+      return 0;
     }
 }
