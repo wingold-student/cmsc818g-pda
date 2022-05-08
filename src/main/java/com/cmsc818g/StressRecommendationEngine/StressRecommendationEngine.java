@@ -3,10 +3,12 @@ package com.cmsc818g.StressRecommendationEngine;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Optional;
 
 import com.cmsc818g.StressManagementController;
 import com.cmsc818g.StressContextEngine.Reporters.LocationReporter;
+import com.cmsc818g.StressContextEngine.Reporters.Reporter;
 import com.cmsc818g.StressContextEngine.Reporters.SleepReporter;
 import com.cmsc818g.StressContextEngine.Reporters.LocationReporter.UserLocation;
 import com.cmsc818g.StressContextEngine.Reporters.SleepReporter.SleepHours;
@@ -73,6 +75,13 @@ public class StressRecommendationEngine extends AbstractBehavior<StressRecommend
             this.response = response;
         }
     }
+    public static final class ReporterRefs implements Command {
+      public final HashMap<String, ActorRef<Reporter.Command>> reporterRefs;
+
+      public ReporterRefs(HashMap<String, ActorRef<Reporter.Command>> reporterRefs) {
+        this.reporterRefs = reporterRefs;
+      }
+    }
 
     /************************************* 
      * MESSAGES IT SENDS
@@ -85,9 +94,11 @@ public class StressRecommendationEngine extends AbstractBehavior<StressRecommend
       return Behaviors.setup(context -> new StressRecommendationEngine(context, configFilename));
     }
 
-    private final ActorRef<RecommendationMetricsAggregator.Command> aggregator;
+    private ActorRef<RecommendationMetricsAggregator.Command> aggregator;
     private final ActorRef<RecommendationMetricsAggregator.AggregatedRecommendationMetrics> aggregatorAdapter;
 
+    private final RecommendationConfig cfg;
+    private HashMap<String, ActorRef<Reporter.Command>> reporterRefs;
     private Optional<SleepHours> sleepReading;
     private Optional<UserLocation> locReading;
     private boolean haveMetrics = false;
@@ -98,19 +109,9 @@ public class StressRecommendationEngine extends AbstractBehavior<StressRecommend
 
         ObjectMapper yamlReader = new ObjectMapper(new YAMLFactory());
         InputStream cfgFilestream = getClass().getClassLoader().getResourceAsStream(configFilename);
-        RecommendationConfig cfg = yamlReader.readValue(cfgFilestream, RecommendationConfig.class);
+        cfg = yamlReader.readValue(cfgFilestream, RecommendationConfig.class);
 
-        // TODO: Temporary
-        RecommendationMetricsConfig config = new RecommendationMetricsConfig(
-          cfg.detectionMetricsCounts,
-          null,
-          null
-          );
-        
         this.aggregatorAdapter = context.messageAdapter(RecommendationMetricsAggregator.AggregatedRecommendationMetrics.class, AdaptedAggreatedMetrics::new);
-
-        // TODO: Note this starts it immediately
-        this.aggregator = context.spawn(RecommendationMetricsAggregator.create(config, this.aggregatorAdapter), "RecommednationAggregator");
     }
   
     /************************************* 
@@ -126,6 +127,7 @@ public class StressRecommendationEngine extends AbstractBehavior<StressRecommend
       .onMessage(recommendEngineGreet.class, this::onEngineResponse)
       .onMessage(AdaptedAggreatedMetrics.class, this::onAggregatedMetrics)
       .onMessage(ScheduleReporterToRecommendation.class, this::onScheduleReporterResponse)
+      .onMessage(ReporterRefs.class, this::onReporterRefs)
       .onSignal(PostStop.class, signal -> onPostStop())
       .build();
     }
@@ -133,6 +135,18 @@ public class StressRecommendationEngine extends AbstractBehavior<StressRecommend
     private Behavior<Command> onEngineResponse(recommendEngineGreet response) { //when receive message
       if(response.message == "recommend"){
           //recommend treatment     
+
+          RecommendationMetricsConfig config = new RecommendationMetricsConfig(
+            cfg.detectionMetricsCounts,
+            reporterRefs.get("Sleep"),
+            reporterRefs.get("Location") 
+            );
+          
+
+          // TODO: Note this starts it immediately
+          this.aggregator = getContext().spawn(RecommendationMetricsAggregator.create(config, this.aggregatorAdapter), "RecommednationAggregator");
+
+          // TODO: Would want to move this to when results are actually ready
           response.replyTo.tell(new StressManagementController.RecommendEngineToController("recommendation")); 
           //this.tell(new SleepReporter.AskSleepHours(getContext().getSelf()))
       }
@@ -147,6 +161,11 @@ public class StressRecommendationEngine extends AbstractBehavior<StressRecommend
 
       // TODO: Somewhat temporary. Could instead now call the actual recommendation algorithm
       haveMetrics = true;
+      return this;
+    }
+
+    private Behavior<Command> onReporterRefs(ReporterRefs msg) {
+      this.reporterRefs = msg.reporterRefs;
       return this;
     }
 
@@ -175,15 +194,15 @@ public class StressRecommendationEngine extends AbstractBehavior<StressRecommend
       public RecommendationMetricsCounts detectionMetricsCounts;
     }
     public static class RecommendationMetricsConfig {
-        public final ActorRef<SleepReporter.Command> sleepReporter;
-        public final ActorRef<LocationReporter.Command> locReporter;
+        public final ActorRef<Reporter.Command> sleepReporter;
+        public final ActorRef<Reporter.Command> locReporter;
 
         public final RecommendationMetricsCounts countCfg;
 
         public RecommendationMetricsConfig(
             RecommendationMetricsCounts countCfg,
-            ActorRef<SleepReporter.Command> sleepReporter,
-            ActorRef<LocationReporter.Command> locReporter
+            ActorRef<Reporter.Command> sleepReporter,
+            ActorRef<Reporter.Command> locReporter
         ) {
             this.countCfg = countCfg;
             this.sleepReporter = sleepReporter;

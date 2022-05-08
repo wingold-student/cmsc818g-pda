@@ -1,15 +1,13 @@
 package com.cmsc818g.StressDetectionEngine;
 
-import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Optional;
+import java.util.HashMap;
 import java.io.InputStreamReader;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 
 import com.cmsc818g.StressManagementController;
-import com.cmsc818g.StressContextEngine.Reporters.*;
 import com.cmsc818g.StressContextEngine.Reporters.Reporter;
 import com.cmsc818g.StressDetectionEngine.DetectionMetricsAggregator.*;
 import com.fasterxml.jackson.core.exc.StreamReadException;
@@ -33,7 +31,6 @@ Send to controller:
     Collected Health Information
     Stress level
 */
-
 public class StressDetectionEngine extends AbstractBehavior<StressDetectionEngine.Command> {
 
     /************************************* 
@@ -60,6 +57,14 @@ public class StressDetectionEngine extends AbstractBehavior<StressDetectionEngin
             this.response = response;
         }
     }
+
+    public static final class ReporterRefs implements Command {
+      public final HashMap<String, ActorRef<Reporter.Command>> reporterRefs;
+
+      public ReporterRefs(HashMap<String, ActorRef<Reporter.Command>> reporterRefs) {
+        this.reporterRefs = reporterRefs;
+      }
+    }
       
     /************************************* 
      * MESSAGES IT SENDS
@@ -73,8 +78,11 @@ public class StressDetectionEngine extends AbstractBehavior<StressDetectionEngin
         return Behaviors.setup(context -> new StressDetectionEngine(context, configFilename));
     }
 
-    private final ActorRef<DetectionMetricsAggregator.Command> aggregator;
+    private final DetectionConfig cfg;
+    private ActorRef<DetectionMetricsAggregator.Command> aggregator;
     private final ActorRef<DetectionMetricsAggregator.AggregatedStressMetrics> aggregatorAdapter;
+
+    private HashMap<String, ActorRef<Reporter.Command>> reporterRefs; 
 
     public StressDetectionEngine(ActorContext<Command> context, String configFilename) throws StreamReadException, DatabindException, IOException {
         super(context);
@@ -82,24 +90,10 @@ public class StressDetectionEngine extends AbstractBehavior<StressDetectionEngin
 
         ObjectMapper yamlReader = new ObjectMapper(new YAMLFactory());
         InputStream cfgFilestream = getClass().getClassLoader().getResourceAsStream(configFilename);
-        DetectionConfig cfg = yamlReader.readValue(cfgFilestream, DetectionConfig.class);
+        cfg = yamlReader.readValue(cfgFilestream, DetectionConfig.class);
         context.getLog().info("HR Count: {}", cfg.detectionMetricsCounts.hrCount);
 
-        // TODO: Temporary
-        DetectionMetricsConfig metricsConfig = new DetectionMetricsConfig(
-            cfg.detectionMetricsCounts,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null
-        );
-
         this.aggregatorAdapter = context.messageAdapter(DetectionMetricsAggregator.AggregatedStressMetrics.class, AdaptedAggreatedMetrics::new);
-
-        // TODO: Note this starts it immediately
-        this.aggregator = context.spawn(DetectionMetricsAggregator.create(this.aggregatorAdapter, metricsConfig), "DetectionAggregator");
     }
   
 
@@ -111,6 +105,7 @@ public class StressDetectionEngine extends AbstractBehavior<StressDetectionEngin
       return newReceiveBuilder()
       .onMessage(detectionEngineGreet.class, this::onEngineResponse)
       .onMessage(AdaptedAggreatedMetrics.class, this::StressMeasurementProcess)
+      .onMessage(ReporterRefs.class, this::onReporterRefs)
       .onSignal(PostStop.class, signal -> onPostStop())
       .build();
     }
@@ -118,8 +113,24 @@ public class StressDetectionEngine extends AbstractBehavior<StressDetectionEngin
     private Behavior<Command> onEngineResponse(detectionEngineGreet response) { 
         //query reporters 
       if(response.message == "detect"){
+
+        DetectionMetricsConfig metricsConfig = new DetectionMetricsConfig(
+            cfg.detectionMetricsCounts,
+            reporterRefs.get("BloodPressure"),
+            reporterRefs.get("HeartRate"),
+            reporterRefs.get("Sleep"),
+            reporterRefs.get("Location"),
+            reporterRefs.get("Busyness"),
+            reporterRefs.get("Medical") 
+        );
+
+        this.aggregator = getContext().spawn(DetectionMetricsAggregator.create(this.aggregatorAdapter, metricsConfig), "DetectionAggregator");
+
+        // TODO: Move into Measurement Process (since need to wait for results)
         int detected_level = knnPrediction(); //stress detection + measurement process
+
         getContext().getLog().info("Detection engine's stress level: "+ detected_level); 
+
         response.replyTo.tell(new StressManagementController.DetectionEngineToController("healthInfo", detected_level));       
       }
       return this;
@@ -166,6 +177,11 @@ public class StressDetectionEngine extends AbstractBehavior<StressDetectionEngin
       else if(diastolicBP < 80 && systolicBP < 120) { // Normal 
         stressLevel = 1;
       }
+      return this;
+    }
+
+    private Behavior<Command> onReporterRefs(ReporterRefs msg) {
+      this.reporterRefs = msg.reporterRefs;
       return this;
     }
 
@@ -227,21 +243,21 @@ public class StressDetectionEngine extends AbstractBehavior<StressDetectionEngin
     }
     public static class DetectionMetricsConfig {
         public final DetectionMetricsCounts countCfg;
-        public final ActorRef<BloodPressureReporter.Command> bpReporter;
-        public final ActorRef<HeartRateReporter.Command> hrReporter;
-        public final ActorRef<SleepReporter.Command> sleepReporter;
-        public final ActorRef<LocationReporter.Command> locReporter;
-        public final ActorRef<BusynessReporter.Command> busyReporter;
-        public final ActorRef<MedicalHistoryReporter.Command> medicalReporter;
+        public final ActorRef<Reporter.Command> bpReporter;
+        public final ActorRef<Reporter.Command> hrReporter;
+        public final ActorRef<Reporter.Command> sleepReporter;
+        public final ActorRef<Reporter.Command> locReporter;
+        public final ActorRef<Reporter.Command> busyReporter;
+        public final ActorRef<Reporter.Command> medicalReporter;
 
         public DetectionMetricsConfig(
             DetectionMetricsCounts countCfg,
-            ActorRef<BloodPressureReporter.Command> bpReporter,
-            ActorRef<HeartRateReporter.Command> hrReporter,
-            ActorRef<SleepReporter.Command> sleepReporter,
-            ActorRef<LocationReporter.Command> locReporter,
-            ActorRef<BusynessReporter.Command> busyReporter,
-            ActorRef<MedicalHistoryReporter.Command> medicalReporter
+            ActorRef<Reporter.Command> bpReporter,
+            ActorRef<Reporter.Command> hrReporter,
+            ActorRef<Reporter.Command> sleepReporter,
+            ActorRef<Reporter.Command> locReporter,
+            ActorRef<Reporter.Command> busyReporter,
+            ActorRef<Reporter.Command> medicalReporter
         ) {
             this.countCfg = countCfg;
             this.bpReporter = bpReporter;

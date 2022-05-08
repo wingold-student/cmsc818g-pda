@@ -46,6 +46,16 @@ public class StressContextEngine extends AbstractBehavior<StressContextEngine.Co
           this.list = list;
         }
       }//end of class contextEngineGreet
+    
+    public static class RequestReporterRef implements Command {
+      public final String name;
+      public final ActorRef<ReporterRefResponse> replyTo;
+
+      public RequestReporterRef(String name, ActorRef<ReporterRefResponse> replyTo) {
+        this.name = name;
+        this.replyTo = replyTo;
+      }
+    }
 
     public static class TellAllReportersToReadRow implements Command {
       public final int rowToRead;
@@ -66,6 +76,17 @@ public class StressContextEngine extends AbstractBehavior<StressContextEngine.Co
         this.status = status;
       }
     }
+
+    public interface Response {};
+    public static final class ReporterRefResponse implements Response {
+      public final String name;
+      public final ActorRef<Reporter.Command> reporterRef;
+
+      public ReporterRefResponse(String name, ActorRef<Reporter.Command> reporterRef) {
+        this.name = name;
+        this.reporterRef = reporterRef;
+      }
+    }
  
     public static Behavior<Command> create(String databaseURI, String tableName, String configFilename) {
         return Behaviors.<Command>supervise(
@@ -77,7 +98,6 @@ public class StressContextEngine extends AbstractBehavior<StressContextEngine.Co
     }
 
     private final ActorRef<SQLiteHandler.StatusOfRead> statusAdapter;
-
     private final HashMap<String, ActorRef<Reporter.Command>> reporters;
 
     public StressContextEngine(ActorContext<Command> context, String databaseURI, String tableName, String configFilename) throws StreamReadException, DatabindException, IOException {
@@ -194,6 +214,7 @@ public class StressContextEngine extends AbstractBehavior<StressContextEngine.Co
         .onMessage(TellAllReportersToReadRow.class, this::onTellAllReportersToReadRow)
         .onMessage(TellAllReportersToPeriodicallyRead.class, this::onTellAllReportersToPeriodicallyRead)
         .onMessage(DatabaseReadStatus.class, this::onDatabaseReadStatus)
+        .onMessage(RequestReporterRef.class, this::onRequestReporterRef)
         .onSignal(ChildFailed.class, signal -> onChildFailed(signal))
         .onSignal(PostStop.class, signal -> onPostStop())
         .build();
@@ -227,6 +248,13 @@ public class StressContextEngine extends AbstractBehavior<StressContextEngine.Co
       return this;
     }
 
+    private Behavior<Command> onRequestReporterRef(RequestReporterRef msg) {
+      ActorRef<Reporter.Command> reporter = this.reporters.get(msg.name);
+      msg.replyTo.tell(new ReporterRefResponse(msg.name, reporter));
+
+      return this;
+    }
+
     private Behavior<Command> onChildFailed(ChildFailed signal) {
       ActorPath childPath = signal.getRef().path();
       String errorMsg = "Child " + childPath + " failed";
@@ -241,7 +269,9 @@ public class StressContextEngine extends AbstractBehavior<StressContextEngine.Co
     }
   
     private Behavior<Command> onEngineResponse(contextEngineGreet message) { //controller 
-        message.replyTo.tell(new StressManagementController.ContextEngineToController("contextEngine"));       
+      HashMap<String, ActorRef<Reporter.Command>> reporterRefs = new HashMap<>(this.reporters);
+
+      message.replyTo.tell(new StressManagementController.ContextEngineToController("contextEngine", reporterRefs));       
       return this;
     }
 

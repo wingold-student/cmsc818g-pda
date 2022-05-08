@@ -5,8 +5,10 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.HashMap;
 
 import com.cmsc818g.StressContextEngine.StressContextEngine;
+import com.cmsc818g.StressContextEngine.Reporters.Reporter;
 import com.cmsc818g.StressDetectionEngine.StressDetectionEngine;
 import com.cmsc818g.StressRecommendationEngine.StressRecommendationEngine;
 import com.cmsc818g.StressUIManager.StressUIManager;
@@ -32,7 +34,7 @@ public class StressManagementController extends AbstractBehavior<StressManagemen
     public static int pastStressLevel = 0;
     public static int currentStressLevel = 0;
     
-    //public final ActorRef<StressEntityManager.Command> child_EntityManager;
+    private final ControllerConfig cfg;
     public final ActorRef<StressContextEngine.Command> child_ContextEngine;
     public final ActorRef<StressDetectionEngine.Command> child_DetectionEngine;
     public final ActorRef<StressRecommendationEngine.Command> child_RecommendEngine;
@@ -48,7 +50,7 @@ public class StressManagementController extends AbstractBehavior<StressManagemen
 
         InputStream is = getClass().getClassLoader().getResourceAsStream(configFilename);
         ObjectMapper yamlReader = new ObjectMapper(new YAMLFactory());
-        ControllerConfig cfg = yamlReader.readValue(is, ControllerConfig.class);
+        this.cfg = yamlReader.readValue(is, ControllerConfig.class);
 
         /* Entity Manager gets/spawns Entities 
           child_EntityManager = context.spawn(StressEntityManager.create(), "StressEntityManager");
@@ -104,10 +106,14 @@ public class StressManagementController extends AbstractBehavior<StressManagemen
   }//end of EntityManagerToController
     public static class ContextEngineToController implements Command {
       public final String message;
-      public ContextEngineToController(String message) {
+      public final HashMap<String, ActorRef<Reporter.Command>> reporterRefs;
+
+      public ContextEngineToController(String message, HashMap<String, ActorRef<Reporter.Command>> reporterRefs) {
         this.message = message;
+        this.reporterRefs = reporterRefs;
       }
     }//end of ControllerToContextEngine
+
     public static class DetectionEngineToController implements Command {
       public final String message;
       public DetectionEngineToController(String message, int level) {
@@ -172,9 +178,15 @@ public class StressManagementController extends AbstractBehavior<StressManagemen
  
     private Behavior<Command> onContextEnginedResponse(ContextEngineToController response) {
         getContext().getLog().info("Got response from Context Engine: {}", response.message);
-        if(response.message != "contextEngine") return null;
-        else
+        if(response.message != "contextEngine")
+          return null;
+        else {
+          // Tell both engines about the reporters
+          child_DetectionEngine.tell(new StressDetectionEngine.ReporterRefs(response.reporterRefs));
+          child_RecommendEngine.tell(new StressRecommendationEngine.ReporterRefs(response.reporterRefs));
+
           child_DetectionEngine.tell(new StressDetectionEngine.detectionEngineGreet("detect",getContext().getSelf(), entityList));
+        }
         return this;
     }
 
