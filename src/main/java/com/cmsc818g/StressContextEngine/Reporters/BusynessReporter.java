@@ -160,6 +160,8 @@ public class BusynessReporter extends Reporter {
             .onMessage(WrappedSchedulerResponse.class, this::onWrappedSchedulerResponse)
             .onMessage(WrappedUpdateEventResponse.class, this::onWrappedUpdateEventResponse)
             .onMessage(GracefulShutdown.class, this::onGracefulShutdown)
+            .onMessage(StartReading.class, this::onStartReading)
+            .onMessage(StopReading.class, this::onStopReading)
             .onSignal(PostStop.class, signal -> onPostStop())
             .build();
     }
