@@ -130,6 +130,7 @@ public class MedicalHistoryReporter extends Reporter {
     @Override
     public Receive<Reporter.Command> createReceive() {
         return newReceiveBuilder()
+            .onMessage(Reporter.ReadRowOfData.class, this::onReadRowOfData)
             .onMessage(SendQuery.class, this::onSendQuery)
             .onMessage(AddToHistory.class, this::onAddToHistory)
             .onMessage(RemoveFromHistory.class, this::onRemoveFromHistory)
