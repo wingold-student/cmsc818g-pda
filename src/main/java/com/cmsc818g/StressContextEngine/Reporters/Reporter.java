@@ -2,7 +2,6 @@ package com.cmsc818g.StressContextEngine.Reporters;
 
 import java.sql.Connection;
 
-import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -10,8 +9,6 @@ import java.time.Duration;
 import java.util.List;
 
 import com.cmsc818g.Utilities.SQLiteHandler;
-
-import org.sqlite.SQLiteException;
 
 import akka.actor.ActorPath;
 import akka.actor.typed.ActorRef;
@@ -110,7 +107,9 @@ public abstract class Reporter extends AbstractBehavior<Reporter.Command> {
     }
 
     protected ResultSet queryDB(List<String> columnHeaders, ActorPath actorPath, int rowNumber) throws ClassNotFoundException, SQLException {
-        String sql = String.format("SELECT {} FROM {} WHERE id = ?", columnHeaders.toString(), tableName);
+        String headers = String.join(", ", columnHeaders);
+        String sql = String.format("SELECT {} FROM {} WHERE id = ?", headers, tableName);
+
         ResultSet results = null;
         Connection conn = null;
 
