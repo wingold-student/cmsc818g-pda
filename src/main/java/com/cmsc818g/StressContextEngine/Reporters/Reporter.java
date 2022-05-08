@@ -102,6 +102,7 @@ public abstract class Reporter extends AbstractBehavior<Reporter.Command> {
     }
 
     protected Behavior<Reporter.Command> onStopReading(StopReading msg) {
+        getContext().getLog().info("Stopped reading from database");
         timers.cancel(this.timerName);
         return this;
     }
@@ -121,10 +122,12 @@ public abstract class Reporter extends AbstractBehavior<Reporter.Command> {
         } catch (ClassNotFoundException e) {
             String errorStr = "Failed find the SQLite drivers";
             getContext().getLog().error(errorStr, e);
+            getContext().getSelf().tell(StopReading.INSTANCE);
             throw e;
         } catch(SQLException e) {
             String errorStr = String.format("Failed to execute SQL query {} on row {} from actor {}", sql, rowNumber, actorPath);
             getContext().getLog().error(errorStr, e);
+            getContext().getSelf().tell(StopReading.INSTANCE);
             throw e;
         } finally {
             if (conn != null)
