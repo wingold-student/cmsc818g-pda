@@ -1,7 +1,5 @@
 package com.cmsc818g.StressContextEngine.Reporters;
 
-import java.sql.Connection;
-import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Duration;
@@ -12,24 +10,18 @@ import java.util.Optional;
 
 import com.cmsc818g.StressEntityManager.Entities.CalendarCommand;
 import com.cmsc818g.Utilities.SQLiteHandler;
-import com.cmsc818g.Utilities.SQLiteHandler.StatusOfRead;
 
-import org.slf4j.Logger;
-
-import akka.Done;
 import akka.actor.ActorPath;
 import akka.actor.typed.ActorRef;
 import akka.actor.typed.Behavior;
 import akka.actor.typed.PostStop;
 import akka.actor.typed.SupervisorStrategy;
-import akka.actor.typed.javadsl.AbstractBehavior;
 import akka.actor.typed.javadsl.ActorContext;
 import akka.actor.typed.javadsl.Behaviors;
 import akka.actor.typed.javadsl.Receive;
 import akka.actor.typed.javadsl.TimerScheduler;
 import akka.actor.typed.pubsub.Topic;
 import akka.http.javadsl.model.DateTime;
-import akka.pattern.StatusReply;
 
 // AbstractBehavior<What type of messages it will receive>
 public class SchedulerReporter extends Reporter {
