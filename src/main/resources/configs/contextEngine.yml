@@ -1,30 +1,29 @@
-reporters:
-  HeartRate:
-    dbURI: jdbc:sqlite:src/main/resources/EntityDB.db
-    table: SmartWatch
-    readRate: 2
-  Sleep:
-    dbURI: jdbc:sqlite:src/main/resources/EntityDB.db
-    table: SmartWatch
-    readRate: 2
-  BloodPressure:
-    dbURI: jdbc:sqlite:src/main/resources/EntityDB.db
-    table: BloodPressureCuff
-    readRate: 2
-  Location:
-    dbURI: jdbc:sqlite:src/main/resources/EntityDB.db
-    table: Phone
-    readRate: 2
-  Busyness:
-    dbURI: jdbc:sqlite:src/main/resources/EntityDB.db
-    table: Phone
-    readRate: 2
-  Scheduler:
-    dbURI: jdbc:sqlite:src/main/resources/EntityDB.db
-    table: Phone
-    readRate: 2
-  Medical:
-    dbURI: jdbc:sqlite:src/main/resources/EntityDB.db
-    table: Phone
-    readRate: 0
+HeartRate:
+  dbURI: jdbc:sqlite:src/main/resources/EntityDB.db
+  table: SmartWatch
+  readRate: 2
+Sleep:
+  dbURI: jdbc:sqlite:src/main/resources/EntityDB.db
+  table: SmartWatch
+  readRate: 2
+BloodPressure:
+  dbURI: jdbc:sqlite:src/main/resources/EntityDB.db
+  table: BloodPressureCuff
+  readRate: 2
+Location:
+  dbURI: jdbc:sqlite:src/main/resources/EntityDB.db
+  table: Phone
+  readRate: 2
+Busyness:
+  dbURI: jdbc:sqlite:src/main/resources/EntityDB.db
+  table: Phone
+  readRate: 2
+Scheduler:
+  dbURI: jdbc:sqlite:src/main/resources/EntityDB.db
+  table: Calendar
+  readRate: 2
+Medical:
+  dbURI: jdbc:sqlite:src/main/resources/EntityDB.db
+  table: MedicalHistory
+  readRate: 86400
 
