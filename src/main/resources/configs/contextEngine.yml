@@ -23,4 +23,8 @@ reporters:
     dbURI: jdbc:sqlite:src/main/resources/EntityDB.db
     table: Phone
     readRate: 2
+  Medical:
+    dbURI: jdbc:sqlite:src/main/resources/EntityDB.db
+    table: Phone
+    readRate: 0
 
