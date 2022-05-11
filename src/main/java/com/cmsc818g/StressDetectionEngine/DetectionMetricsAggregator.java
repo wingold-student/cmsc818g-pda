@@ -176,11 +176,18 @@ public class DetectionMetricsAggregator extends AbstractBehavior<DetectionMetric
         medicalReading = Optional.empty();
         timeReading = Optional.of("8:00"); // TODO: Update and ask Scheduler for it
 
+        /*
         config.bpReporter.tell(new BloodPressureReporter.Subscribe(this.bpAdapter));       
         config.hrReporter.tell(new HeartRateReporter.Subscribe(this.hrAdapter));
         config.locReporter.tell(new LocationReporter.Subscribe(this.locAdapter));
         config.sleepReporter.tell(new SleepReporter.Subscribe(this.sleepAdapter));
         config.busyReporter.tell(new BusynessReporter.Subscribe(this.busyAdapter));
+        */
+        config.bpReporter.tell(new BloodPressureReporter.ReadBloodPressure(this.bpAdapter));
+        config.hrReporter.tell(new HeartRateReporter.ReadHeartRate(this.hrAdapter));
+        config.sleepReporter.tell(new SleepReporter.ReadSleepHours(this.sleepAdapter));
+        config.locReporter.tell(new LocationReporter.ReadLocation(this.locAdapter));
+        config.busyReporter.tell(new BusynessReporter.GetCurrentBusynessLevel(this.busyAdapter));
 
         // TODO: Query medical for some sort of data?
         config.medicalReporter.tell(new MedicalHistoryReporter.SendQuery("", this.medicalAdapter));

@@ -97,8 +97,8 @@ public class RecommendationMetricsAggregator extends AbstractBehavior<Recommenda
         sleepReading = Optional.empty();
         locReading = Optional.empty();
 
-        config.locReporter.tell(new LocationReporter.Subscribe(this.locAdapter));
-
+        // config.locReporter.tell(new LocationReporter.Subscribe(this.locAdapter));
+        config.locReporter.tell(new LocationReporter.ReadLocation(this.locAdapter));
         config.sleepReporter.tell(new SleepReporter.ReadSleepHours(this.sleepAdapter));
     }
 
@@ -120,6 +120,7 @@ public class RecommendationMetricsAggregator extends AbstractBehavior<Recommenda
     public Behavior<Command> onAdaptedSleepResponse(AdaptedSleepResponse response) {
         sleepReading = response.response.value;
         sleepCount++;
+        getContext().getLog().info("AGGREGATOR GOT SLEEP");
         sendDataIfComplete();
         return this;
     }
@@ -127,6 +128,7 @@ public class RecommendationMetricsAggregator extends AbstractBehavior<Recommenda
     public Behavior<Command> onAdaptedLocationResponse(AdaptedLocationResponse response) {
         locReading = response.response.value;
         locCount++;
+        getContext().getLog().info("AGGREGATOR GOT LOCATIOn");
         sendDataIfComplete();
         return this;
     }
@@ -147,6 +149,7 @@ public class RecommendationMetricsAggregator extends AbstractBehavior<Recommenda
      * HELPER FUNCTIONS
      *************************************/
     private void sendDataIfComplete() {
+        getContext().getLog().info("CHECKING IF HAVE ALL DATA");
         if (sleepCount >= config.countCfg.sleepCount &&
                 locCount >= config.countCfg.locCount) {
 
@@ -154,6 +157,7 @@ public class RecommendationMetricsAggregator extends AbstractBehavior<Recommenda
             sleepCount = 0;
             locCount = 0;
 
+            getContext().getLog().info("TELLING RECOMMENDATION ENGINE METRICS");
             replyTo.tell(new AggregatedRecommendationMetrics(sleepReading, locReading));
             getContext().getSelf().tell(GracefulShutdown.INSTANCE);
         }
