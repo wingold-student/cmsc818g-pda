@@ -207,7 +207,6 @@ public class HeartRateReporter extends Reporter {
                 // Tell the Context Engine we've successfully read
                 msg.replyTo.tell(new SQLiteHandler.StatusOfRead(true, "Succesfully read row " + msg.rowNumber, myPath));
 
-                this.currentRow++;
             } else {
                 this.lastReading = Optional.empty();
             }

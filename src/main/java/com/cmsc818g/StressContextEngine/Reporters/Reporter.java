@@ -99,6 +99,8 @@ public abstract class Reporter extends AbstractBehavior<Reporter.Command> {
         this.currentRow = 1;
 
         getContext().getLog().info("Starting periodic reads of data");
+        getContext().getSelf().tell(TellSelfToRead.INSTANCE);
+
         timers.startTimerAtFixedRate(this.timerName,
                                     TellSelfToRead.INSTANCE,
                                     Duration.ofSeconds(readRate));
@@ -107,6 +109,7 @@ public abstract class Reporter extends AbstractBehavior<Reporter.Command> {
 
     protected Behavior<Reporter.Command> onTellSelfToRead(TellSelfToRead msg) {
         getContext().getSelf().tell(new Reporter.ReadRowOfData(this.currentRow, this.statusListener));
+        this.currentRow++;
         return this;
     }
 

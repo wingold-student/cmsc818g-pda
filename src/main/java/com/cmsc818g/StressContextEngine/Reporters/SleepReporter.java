@@ -178,18 +178,19 @@ public class SleepReporter extends Reporter {
             // Create the latest reading only if all data is there
             if (reading.isPresent()) {
 
+                getContext().getLog().info(reading.get().toString());
                 // Can share because it is immutable
                 SleepHours sleepValue = new SleepHours(readingTime, reading.get());
 
                 this.lastReading = Optional.of(sleepValue);
-                /*
+
+                // TODO: Have read first row when starting up to initialize a value?
+                // Really just for ease
                 this.sleepTopic.tell(Topic.publish(
                     new SleepHoursReading(Optional.of(sleepValue))
                 ));
-                */
                 // Tell the Context Engine we've successfully read
                 msg.replyTo.tell(new SQLiteHandler.StatusOfRead(true, "Succesfully read row " + msg.rowNumber, myPath));
-                this.currentRow++;
             } else {
                 this.lastReading = Optional.empty();
             }
