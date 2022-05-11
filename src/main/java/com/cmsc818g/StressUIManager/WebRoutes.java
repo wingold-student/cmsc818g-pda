@@ -56,6 +56,10 @@ public class WebRoutes {
         return AskPattern.ask(webHandlerActor, ref -> new StressWebHandler.GetJSONData(ref), askTimeout, scheduler);
     }
 
+    private CompletionStage<StressWebHandler.GetJSONDataResponse> getNullTreatment() {
+        return AskPattern.ask(webHandlerActor, ref -> new StressWebHandler.GetJSONDataNullTreatment(ref), askTimeout, scheduler);
+    }
+
     // Manages the routes the server will handle and what to do
     public Route webRoutes() {
         return respondWithDefaultHeader(RawHeader.create("Access-Control-Allow-Origin", "*"), () ->
@@ -75,10 +79,27 @@ public class WebRoutes {
                         )
                     )
                 ),
+                path("data", () ->
+                    get(() ->
+                        onSuccess(getJSONData(),
+                            data -> complete(StatusCodes.OK, data, Jackson.marshaller())
+                        )
+                    )
+                ),
+                path("null-treatment", () ->
+                    get(() ->
+                        onSuccess(getNullTreatment(),
+                            data -> complete(StatusCodes.OK, data, Jackson.marshaller())
+                        )
+                    )
+                ),
                 path("sse", () ->
                     get(() -> 
                         completeOK(Source.from(this.events), EventStreamMarshalling.toEventStream())
                     )
+                ),
+                pathPrefix("img", () ->
+                    getFromResourceDirectory("web/treatment_images")
                 )
             )
         );

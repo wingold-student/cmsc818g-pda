@@ -1,5 +1,7 @@
 package com.cmsc818g.StressUIManager;
 
+import java.util.HashMap;
+
 import com.cmsc818g.StressDetectionEngine.StressDetectionEngine.DetectionData;
 import com.cmsc818g.StressRecommendationEngine.StressRecommendationEngine.RecommendationData;
 import com.fasterxml.jackson.annotation.JsonCreator;
@@ -40,6 +42,13 @@ public class StressWebHandler extends AbstractBehavior<StressWebHandler.Command>
         }
     }
 
+    public final static class GetJSONDataNullTreatment implements Command {
+        public final ActorRef<GetJSONDataResponse> replyTo;
+        public GetJSONDataNullTreatment(ActorRef<GetJSONDataResponse> replyTo) {
+            this.replyTo = replyTo;
+        }
+    }
+
     public final static class ReceiveCombinedData implements Command {
         public final CombinedEngineData combinedData;
 
@@ -72,9 +81,70 @@ public class StressWebHandler extends AbstractBehavior<StressWebHandler.Command>
     private int replyId;
     private CombinedEngineData data;
 
+    private HashMap<String, Treatment> treatmentData = new HashMap<String, Treatment>();
+
     public StressWebHandler(ActorContext<Command> context) {
         super(context);
         replyId = 0;
+
+        treatmentData.put("deep breathing exercise",
+                        new Treatment(
+                            "Breathing exercise",
+                            "A deep breathing exercise",
+                            "img/deep_breathing_exercise.gif"));
+
+
+        treatmentData.put("meditation",
+                        new Treatment(
+                            "Meditation Guide",
+                            "Guide to Meditation",
+                            "img/meditation.jpg"));
+
+        treatmentData.put("work out",
+                        new Treatment(
+                            "Try Working Out",
+                            "Working out",
+                            "img/workout.jpg"));
+
+        treatmentData.put("take a walk",
+                        new Treatment(
+                            "Try Taking a Walk",
+                            "Taking a walk can help",
+                            "img/take_a_walk.jpg"));
+
+        treatmentData.put("mindfulness meditation",
+                        new Treatment(
+                            "Mindfullness Meditation",
+                            "Take some time to inspect your mind",
+                            "img/mindfulness_meditation.jpg"));
+
+        treatmentData.put("relaxation to music",
+                        new Treatment(
+                            "Relaxing Music",
+                            "Try some relaxing music to soothe your mind",
+                            "img/relaxation_to_music.jpg"));
+
+        treatmentData.put("cancel plans",
+                        new Treatment(
+                            "Cancel Plans",
+                            "You may want to cancel some plans to give you some time to breathe",
+                            "img/cancel_plans.jpg"));
+
+        treatmentData.put("cancel plans and get some sleep",
+                        new Treatment(
+                            "Cancel Plans, You Need Sleep",
+                            "You may want to cancel some plans and get some sleep",
+                            "img/cancel_plans_and_get_some_sleep.jpg"));
+
+        treatmentData.put("contact therapist or close friends and family",
+                        new Treatment(
+                            "Give your Therapist or Close Friend/Family a Call",
+                            "Try giving a call to someone for support",
+                            "img/contact.jpg"));
+
+        RecommendationData tmpRecommendation = new RecommendationData("", "", "", ""); 
+        DetectionData tmpDetection = new DetectionData(null, null, null, null, null, 0, 0);
+        this.data = new CombinedEngineData(tmpRecommendation, tmpDetection);
     }
 
     /** TestData is just an example class for holding JSON data. */
@@ -116,6 +186,7 @@ public class StressWebHandler extends AbstractBehavior<StressWebHandler.Command>
         return newReceiveBuilder()
             .onMessage(GetTestJSON.class, this::onGetTestJSON)
             .onMessage(GetJSONData.class, this::onGetJSONData)
+            .onMessage(GetJSONDataNullTreatment.class, this::onGetJSONDataNullTreatment)
             .onMessage(ReceiveCombinedData.class, this::onReceiveCombinedData)
             .onSignal(PostStop.class, signal -> onPostStop())
             .build();
@@ -137,12 +208,36 @@ public class StressWebHandler extends AbstractBehavior<StressWebHandler.Command>
         return this;
     }
 
+
     private Behavior<Command> onGetJSONData(GetJSONData msg) {
         DetectionData detectionData = this.data.detectionData;
         RecommendationData recommendationData = this.data.recommendationData;
-        String treatmentExists = (recommendationData.treatmentDescription != null ? "no" : "yes");
 
-        Treatment treatment = null; //getTreatmentData(recommendationData.treatmentDescription);
+        Treatment treatment = this.treatmentData.getOrDefault(recommendationData.treatmentDescription, null);
+        String treatmentExists = (treatment == null ? "no" : "yes");
+
+        Data information = new Data(
+            this.replyId++,
+            detectionData.hr.heartrate,
+            detectionData.sleep.sleep,
+            detectionData.previousStressLevel,
+            detectionData.currentStressLevel,
+            recommendationData.event,
+            recommendationData.location,
+            treatment,
+            treatmentExists);
+
+        msg.replyTo.tell(new GetJSONDataResponse(information));
+        return this;
+    }
+
+
+    private Behavior<Command> onGetJSONDataNullTreatment(GetJSONDataNullTreatment msg) {
+        DetectionData detectionData = this.data.detectionData;
+        RecommendationData recommendationData = this.data.recommendationData;
+
+        Treatment treatment = null;
+        String treatmentExists = (treatment == null ? "no" : "yes");
 
         Data information = new Data(
             this.replyId++,
@@ -160,7 +255,7 @@ public class StressWebHandler extends AbstractBehavior<StressWebHandler.Command>
     }
 
     private Behavior<Command> onReceiveCombinedData(ReceiveCombinedData msg) {
-        //this.data = msg.recommendationData;
+        this.data = msg.combinedData;
         return this;
     }
 
