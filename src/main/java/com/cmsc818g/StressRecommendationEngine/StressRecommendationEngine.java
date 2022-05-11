@@ -174,7 +174,7 @@ public class StressRecommendationEngine extends AbstractBehavior<StressRecommend
       return this;
     }
 
-    private Behavior<Command> onAggregatedMetrics(AdaptedAggreatedMetrics wrapped) {
+    private Behavior<Command> onAggregatedMetrics(AdaptedAggreatedMetrics wrapped) throws ClassNotFoundException, SQLException {
       AggregatedRecommendationMetrics metrics = wrapped.response;
       
       sleepReading = metrics.sleepReading;
@@ -218,7 +218,7 @@ public class StressRecommendationEngine extends AbstractBehavior<StressRecommend
       // AND location_condition = locationCondition;
       //SELECT `treatment' FROM %s WHERE `stress-level' = %d AND `sleep-condition' = %s AND location-condition = %s",tableName, stressLevel, sleepCondition, locationCondition
       try{
-        String sql = String.format("SELECT treatment FROM %s WHERE `stress-level' = %d AND `sleep-condition' = %s AND location-condition = %s",cfg.table, stressLevel, sleepCondition, locationCondition);
+        String sql = String.format("SELECT treatment FROM %s WHERE `stress-level' = %d AND `sleep-condition' = %s AND location-condition = %s",cfg.table, stressLevelReceived, sleepCondition, locationCondition);
 
         Logger logger = getContext().getLog();
         ActorPath myPath = getContext().getSelf().path();
