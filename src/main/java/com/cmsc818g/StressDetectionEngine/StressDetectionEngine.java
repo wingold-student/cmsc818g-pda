@@ -124,14 +124,12 @@ public class StressDetectionEngine extends AbstractBehavior<StressDetectionEngin
             reporterRefs.get("Medical") 
         );
 
-        // this.aggregator = getContext().spawn(DetectionMetricsAggregator.create(this.aggregatorAdapter, metricsConfig), "DetectionAggregator");
+        this.aggregator = getContext().spawn(DetectionMetricsAggregator.create(this.aggregatorAdapter, metricsConfig), "DetectionAggregator");
 
-        // TODO: Move into Measurement Process (since need to wait for results)
-        // int detected_level = knnPrediction(); //stress detection + measurement process
-
-        // getContext().getLog().info("Detection engine's stress level: "+ detected_level); 
-
-        // response.replyTo.tell(new StressManagementController.DetectionEngineToController("healthInfo", detected_level));       
+       // TODO: Move into Measurement Process (since need to wait for results)
+        int detected_level = knnPrediction(); //stress detection + measurement process
+        getContext().getLog().info("Detection engine's stress level: "+ detected_level); 
+        response.replyTo.tell(new StressManagementController.DetectionEngineToController("healthInfo", detected_level));       
       }
       return this;
     }
@@ -205,7 +203,7 @@ public class StressDetectionEngine extends AbstractBehavior<StressDetectionEngin
               System.err.println("Command error:\""+new String(buf)+"\"");
           }
           line = bfr.readLine();
-          System.out.println("KNN output : " + line); // [2.]
+          System.out.println("Python output : " + line); // [2.]
           String python_output = line;
 
           return Integer.parseInt(String.valueOf(python_output.charAt(1)));

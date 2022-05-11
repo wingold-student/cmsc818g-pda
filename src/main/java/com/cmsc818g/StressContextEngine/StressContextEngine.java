@@ -238,13 +238,13 @@ public class StressContextEngine extends AbstractBehavior<StressContextEngine.Co
     }
 
     private Behavior<Command> onDatabaseReadStatus(DatabaseReadStatus msg) {
-      String message = "Actor " + msg.status.actorPath + ": ";
+      // String message = "Actor " + msg.status.actorPath + ": ";
 
-      if (msg.status.success) {
-        getContext().getLog().info(message + " : " + msg.status.message);
-      } else {
-        getContext().getLog().error(message + " : " + msg.status.message);
-      }
+      // // if (msg.status.success) {
+      // //   getContext().getLog().info(message + " : " + msg.status.message);
+      // // } else {
+      // //   getContext().getLog().error(message + " : " + msg.status.message);
+      // // }
 
       return this;
     }
