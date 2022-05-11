@@ -194,9 +194,8 @@ public class StressDetectionEngine extends AbstractBehavior<StressDetectionEngin
                                                         previousStressLevel,
                                                         currentStressLevel);
 
-
         getContext().getLog().info("Detection engine's stress level: "+ stressLevel); 
-        controller.tell(new StressManagementController.DetectionEngineToController("healthInfo", detectionData));       
+        //controller.tell(new StressManagementController.DetectionEngineToController("healthInfo", detectionData));       
         return this;
     }
 
