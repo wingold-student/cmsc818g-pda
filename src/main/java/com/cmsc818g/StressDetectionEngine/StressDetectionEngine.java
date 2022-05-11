@@ -9,6 +9,11 @@ import java.io.InputStream;
 
 import com.cmsc818g.StressManagementController;
 import com.cmsc818g.StressContextEngine.Reporters.Reporter;
+import com.cmsc818g.StressContextEngine.Reporters.BloodPressureReporter.BloodPressure;
+import com.cmsc818g.StressContextEngine.Reporters.BusynessReporter.BusynessReading;
+import com.cmsc818g.StressContextEngine.Reporters.HeartRateReporter.HeartRate;
+import com.cmsc818g.StressContextEngine.Reporters.LocationReporter.LocationReading;
+import com.cmsc818g.StressContextEngine.Reporters.SleepReporter.SleepHours;
 import com.cmsc818g.StressDetectionEngine.DetectionMetricsAggregator.*;
 import com.fasterxml.jackson.core.exc.StreamReadException;
 import com.fasterxml.jackson.databind.DatabindException;
@@ -267,5 +272,33 @@ public class StressDetectionEngine extends AbstractBehavior<StressDetectionEngin
             this.busyReporter = busyReporter;
             this.medicalReporter = medicalReporter;
         }
+    }
+
+    public static class DetectionData {
+      public final BloodPressure bp;
+      public final HeartRate hr;
+      public final SleepHours sleep;
+      public final LocationReading loc;
+      public final BusynessReading busy;
+      public final int previousStressLevel;
+      public final int currentStressLevel;
+
+      public DetectionData(
+              BloodPressure bp,
+              HeartRate hr,
+              SleepHours sleep,
+              LocationReading loc,
+              BusynessReading busy,
+              int previousStressLevel,
+              int currentStressLevel)
+      {
+        this.bp = bp;
+        this.hr = hr;
+        this.sleep = sleep;
+        this.loc = loc;
+        this.busy = busy;
+        this.previousStressLevel = previousStressLevel;
+        this.currentStressLevel = currentStressLevel;
+      }
     }
 }
