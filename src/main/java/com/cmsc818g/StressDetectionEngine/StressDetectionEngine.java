@@ -2,6 +2,7 @@ package com.cmsc818g.StressDetectionEngine;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Optional;
 import java.io.InputStreamReader;
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -25,6 +26,7 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import akka.actor.typed.ActorRef;
 import akka.actor.typed.Behavior;
 import akka.actor.typed.PostStop;
+import akka.actor.typed.SupervisorStrategy;
 import akka.actor.typed.javadsl.AbstractBehavior;
 import akka.actor.typed.javadsl.ActorContext;
 import akka.actor.typed.javadsl.Behaviors;
@@ -81,7 +83,9 @@ public class StressDetectionEngine extends AbstractBehavior<StressDetectionEngin
      *************************************/
 
     public static Behavior<Command> create(String configFilename) {
-        return Behaviors.setup(context -> new StressDetectionEngine(context, configFilename));
+        return Behaviors.<Command>supervise(
+          Behaviors.setup(context -> new StressDetectionEngine(context, configFilename))
+        ).onFailure(Exception.class, SupervisorStrategy.stop());
     }
 
     private final DetectionConfig cfg;
@@ -132,7 +136,7 @@ public class StressDetectionEngine extends AbstractBehavior<StressDetectionEngin
             reporterRefs.get("Medical") 
         );
 
-        this.aggregator = getContext().spawn(DetectionMetricsAggregator.create(this.aggregatorAdapter, metricsConfig), "DetectionAggregator");
+        getContext().spawnAnonymous(DetectionMetricsAggregator.create(this.aggregatorAdapter, metricsConfig));
         controller = response.replyTo; 
       }
       return this;
@@ -157,6 +161,22 @@ public class StressDetectionEngine extends AbstractBehavior<StressDetectionEngin
         int heartRate = metrics.hrReading.get().getheartrate();
         int sleepHours = metrics.sleepReading.get().sleep;
         int busyness = metrics.busyReading.get().level.get();
+
+        if (metrics.bpReading.isEmpty()) {
+          getContext().getLog().info("BP reading is empty");
+        }
+        if (metrics.hrReading.isEmpty()) {
+          getContext().getLog().info("Heartrate reading is empty");
+        }
+        if (metrics.sleepReading.isEmpty()) {
+          getContext().getLog().info("Sleep reading is empty");
+        }
+        if (metrics.locReading.isEmpty()) {
+          getContext().getLog().info("Location reading is empty");
+        }
+        if (metrics.busyReading.isEmpty()) {
+          getContext().getLog().info("Busyness reading is empty");
+        }
 
 
         getContext().getLog().info(" ML measure started ");
@@ -193,12 +213,15 @@ public class StressDetectionEngine extends AbstractBehavior<StressDetectionEngin
             System.out.println(e);
         }
 
+        String dataOutput = String.format("BP: %s HR: %d Sleep: %d Loc: %s Busy: %d", metrics.bpReading.get().toString(), metrics.hrReading.get().heartrate, metrics.sleepReading.get().sleep, metrics.locReading.get().location, metrics.busyReading.get().level.get());
+        getContext().getLog().info(dataOutput);
         // TODO: Check if any of these are empty?
-        DetectionData detectionData = new DetectionData(metrics.bpReading.get(),
-                                                        metrics.hrReading.get(),
-                                                        metrics.sleepReading.get(),
-                                                        metrics.locReading.get(),
-                                                        metrics.busyReading.get(),
+        DetectionData detectionData = new DetectionData(metrics.bpReading.orElse(new BloodPressure(Optional.of(""), 0, 0)),
+                                                        metrics.hrReading.orElse(new HeartRate(Optional.of(""), 0)),
+                                                        metrics.sleepReading.orElse(new SleepHours(Optional.of(""), 0)),
+                                                        metrics.locReading.orElse(new UserLocation(Optional.of(""), "")),
+                                                        metrics.busyReading.orElse(new BusynessReading(Optional.of(0))),
+                                                        metrics.timeReading.orElse(""),
                                                         previousStressLevel,
                                                         currentStressLevel);
 
@@ -260,6 +283,7 @@ public class StressDetectionEngine extends AbstractBehavior<StressDetectionEngin
       public final SleepHours sleep;
       public final UserLocation loc;
       public final BusynessReading busy;
+      public final String time;
       public final int previousStressLevel;
       public final int currentStressLevel;
 
@@ -269,6 +293,7 @@ public class StressDetectionEngine extends AbstractBehavior<StressDetectionEngin
               SleepHours sleep,
               UserLocation loc,
               BusynessReading busy,
+              String time,
               int previousStressLevel,
               int currentStressLevel)
       {
@@ -277,6 +302,7 @@ public class StressDetectionEngine extends AbstractBehavior<StressDetectionEngin
         this.sleep = sleep;
         this.loc = loc;
         this.busy = busy;
+        this.time = time;
         this.previousStressLevel = previousStressLevel;
         this.currentStressLevel = currentStressLevel;
       }
