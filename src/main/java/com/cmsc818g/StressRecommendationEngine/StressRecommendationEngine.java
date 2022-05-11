@@ -166,6 +166,7 @@ public class StressRecommendationEngine extends AbstractBehavior<StressRecommend
       sleepReading = metrics.sleepReading;
       locReading = metrics.locReading;
       haveMetrics = true;
+      String blah = metrics.locReading.get().location;
 
       // TODO: Somewhat temporary. Could instead now call the actual recommendation algorithm
       switch((0 <= sleepReadingResults && sleepReadingResults <= 5 ) ? 0 : 1){
@@ -248,5 +249,36 @@ public class StressRecommendationEngine extends AbstractBehavior<StressRecommend
             this.locReporter = locReporter;
         }
     }
+    
+    public final static class Treatment {
+        public final String title;
+        public final String summary;
+        public final String url;
 
+        public Treatment(String title,
+                         String summary,
+                         String url) {
+            this.title = title;
+            this.summary = summary;
+            this.url = url;
+        }
+    }
+
+    public final static class RecommendationData {
+      public final String event;
+      public final String location;
+      public final String sleepQuality;
+      public final Treatment treatment;
+
+      public RecommendationData(String event,
+                                String location,
+                                String sleepQuality,
+                                Treatment treatment)
+      {
+        this.event = event;
+        this.location = location;
+        this.sleepQuality = sleepQuality;
+        this.treatment = treatment;
+      }
+    }
 }
