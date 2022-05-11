@@ -6,6 +6,18 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Optional;
 
+import java.sql.Connection;
+
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.time.Duration;
+import java.util.List;
+
+import com.cmsc818g.Utilities.SQLiteHandler;
+import org.slf4j.Logger;
+import akka.actor.ActorPath;
+
 import com.cmsc818g.StressManagementController;
 import com.cmsc818g.StressContextEngine.Reporters.LocationReporter;
 import com.cmsc818g.StressContextEngine.Reporters.Reporter;
@@ -36,6 +48,7 @@ Reporters to send msg to:
     Media Player(?)
 Fetch recommendation from Policy DB
 */
+import ch.qos.logback.classic.db.names.TableName;
 
 public class StressRecommendationEngine extends AbstractBehavior<StressRecommendationEngine.Command> {
 
@@ -147,9 +160,9 @@ public class StressRecommendationEngine extends AbstractBehavior<StressRecommend
             cfg.recommendationMetricsCounts,
             reporterRefs.get("Sleep"),
             reporterRefs.get("Location") 
+            
             );
-          
-
+        
           // TODO: Note this starts it immediately
           this.aggregator = getContext().spawn(RecommendationMetricsAggregator.create(config, this.aggregatorAdapter), "RecommednationAggregator");
 
@@ -162,10 +175,12 @@ public class StressRecommendationEngine extends AbstractBehavior<StressRecommend
 
     private Behavior<Command> onAggregatedMetrics(AdaptedAggreatedMetrics wrapped) {
       AggregatedRecommendationMetrics metrics = wrapped.response;
-
+      
       sleepReading = metrics.sleepReading;
       locReading = metrics.locReading;
       haveMetrics = true;
+      
+
 
       // TODO: Somewhat temporary. Could instead now call the actual recommendation algorithm
       switch((0 <= sleepReadingResults && sleepReadingResults <= 5 ) ? 0 : 1){
@@ -197,6 +212,41 @@ public class StressRecommendationEngine extends AbstractBehavior<StressRecommend
       // WHERE stress_level = stressLevelCondition
       // AND sleep_condition = sleepCondition 
       // AND location_condition = locationCondition;
+      //SELECT `treatment' FROM %s WHERE `stress-level' = %d AND `sleep-condition' = %s AND location-condition = %s",tableName, stressLevel, sleepCondition, locationCondition
+      try{
+        String sql = String.format("SSELECT `treatment' FROM %s WHERE `stress-level' = %d AND `sleep-condition' = %s AND location-condition = %s",cfg.table, stressLevel, sleepCondition, locationCondition);
+
+        Logger logger = getContext().getLog();
+        ActorPath myPath = getContext().getSelf().path();
+        
+        // Forms a connection to the database
+        Connection conn = Reporter.connectToDB(cfg.databaseURI, logger, msg.replyTo, myPath);
+        //what msg are we replying to?
+
+        PreparedStatement statement;
+        statement = conn.prepareStatement(sql);
+        statement.setInt(1, msg.rowNumber); // `id` is the only variable ( ? )
+
+        ResultSet results = Reporter.queryDB(cfg.databaseURI, statement, logger, msg.replyTo, myPath);
+        //replace 'sets'?
+
+        //response.replyTo.tell(new StressManagementController.RecommendEngineToController("recommendation")); 
+        //put response here?
+      }
+      catch (ClassNotFoundException e) {
+        String errorStr = "Failed find the SQLite drivers";
+        getContext().getLog().error(errorStr, e);
+        getContext().getSelf().tell(StopReading.INSTANCE);
+        //who to tell when failed?
+        throw e;
+    } catch(SQLException e) {
+        String errorStr = String.format("Failed to execute SQL query ");
+        getContext().getLog().error(errorStr, e);
+        getContext().getSelf().tell(StopReading.INSTANCE);
+        throw e;
+    }
+
+      
       return this;
     }
 
