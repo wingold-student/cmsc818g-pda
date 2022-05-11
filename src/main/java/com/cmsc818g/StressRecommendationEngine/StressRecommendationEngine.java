@@ -199,6 +199,7 @@ public class StressRecommendationEngine extends AbstractBehavior<StressRecommend
       // AND sleep_condition = sleepCondition 
       // AND location_condition = locationCondition;
       // return this;
+      return this;
     }
 
     private Behavior<Command> onReporterRefs(ReporterRefs msg) {
