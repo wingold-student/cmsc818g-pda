@@ -1,6 +1,5 @@
 package com.cmsc818g;
 
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Duration;
@@ -25,7 +24,7 @@ import akka.actor.typed.javadsl.AbstractBehavior;
 import akka.actor.typed.javadsl.ActorContext;
 import akka.actor.typed.javadsl.Behaviors;
 import akka.actor.typed.javadsl.Receive;
-
+import akka.actor.typed.javadsl.TimerScheduler;
 
 public class StressManagementController extends AbstractBehavior<StressManagementController.Command>
 {
@@ -39,6 +38,12 @@ public class StressManagementController extends AbstractBehavior<StressManagemen
     public final ActorRef<StressDetectionEngine.Command> child_DetectionEngine;
     public final ActorRef<StressRecommendationEngine.Command> child_RecommendEngine;
     public final ActorRef<StressUIManager.Command> child_UIManager;
+    private TimerScheduler<Command> detect_timer;
+    private final int readRate = 2;
+
+    protected static enum TellSelfToDetect implements Command {
+      INSTANCE
+    };
 
     public StressManagementController(ActorContext<Command> context, String configFilename) throws StreamReadException, DatabindException, IOException {
         super(context); 
@@ -185,17 +190,26 @@ public class StressManagementController extends AbstractBehavior<StressManagemen
           child_DetectionEngine.tell(new StressDetectionEngine.ReporterRefs(response.reporterRefs));
           child_RecommendEngine.tell(new StressRecommendationEngine.ReporterRefs(response.reporterRefs));
 
-          child_DetectionEngine.tell(new StressDetectionEngine.detectionEngineGreet("detect",getContext().getSelf(), entityList));
+          // Start periodic detection
+          child_DetectionEngine.tell(new StressDetectionEngine.detectionEngineGreet("detect",getContext().getSelf()));
+          //getContext().getLog().info("Starting periodic reads of data");
+          // detect_timer.startTimerAtFixedRate("detect-periodic",
+          //                             TellSelfToDetect.INSTANCE,
+          //                             Duration.ofSeconds(readRate));
         }
         return this;
+    }
+
+    protected Behavior<StressManagementController.Command> onTellSelfToDetect(TellSelfToDetect msg) {
+       getContext().getLog().info("tell detection engine to read periodically");
+       child_DetectionEngine.tell(new StressDetectionEngine.detectionEngineGreet("detect",getContext().getSelf()));
+      return this;
     }
 
     private Behavior<Command> onDetectionEngineResponse(DetectionEngineToController response) {
         getContext().getLog().info("Got response from Detection Engine: {}", response.message);
        if(response.message != "healthInfo") return null;
-       //save past stress level and update with the new one
        getContext().getLog().info("Estimated Stress Level: "+ currentStressLevel);
-       getContext().getLog().info("Past Stress Level: "+ pastStressLevel);
        //Recommendation process start
        if(currentStressLevel != 100)
           child_RecommendEngine.tell(new StressRecommendationEngine.recommendEngineGreet("recommend", 

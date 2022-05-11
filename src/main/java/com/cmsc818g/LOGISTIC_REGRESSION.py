@@ -30,9 +30,9 @@ class LOGISTIC_REGRESSION:
         pass
 
     # print(sys.argv[1],sys.argv[2],sys.argv[3],sys.argv[4],sys.argv[5]) # sleep-hour, busyness, bp-systolic, bp-diastolic, heart-rate
-    running_with_java = 0
+    running_with_java = 1
     if(running_with_java):
-        df
+        
         cur_sleep = int(sys.argv[1])
         cur_busy = int(sys.argv[2])
         cur_bp_sys = int(sys.argv[3])
@@ -42,10 +42,10 @@ class LOGISTIC_REGRESSION:
         health_data = (np.array([[cur_sleep, cur_busy, cur_bp_sys, cur_bp_dia, cur_hr]]))
         cur_data = pd.DataFrame (health_data)
     
-    dataset = pd.read_csv('../../../../../src/main/resources/knn_data.csv', index_col="id")
+    dataset = pd.read_csv('src/main/resources/knn_data.csv', index_col="id")
     datatop = dataset.head()
 
-    model_filename = '../../../../../src/main/resources/LogisticRegression_model.sav' # filename for the model
+    model_filename = 'src/main/resources/LogisticRegression_model.sav' # filename for the model
     # print(datatop)
   
     X = dataset.iloc[:, [1,2,3,4,5]].values # splits the data and make separate array X to hold attributes.
