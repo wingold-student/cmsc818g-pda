@@ -293,11 +293,13 @@ public class DetectionMetricsAggregator extends AbstractBehavior<DetectionMetric
     }
 
     private void Cleanup() {
+        /*
         this.config.bpReporter.tell(new BloodPressureReporter.Unsubscribe(this.bpAdapter));
         this.config.hrReporter.tell(new HeartRateReporter.Unsubscribe(this.hrAdapter));
         this.config.locReporter.tell(new LocationReporter.Unsubscribe(this.locAdapter));
         this.config.sleepReporter.tell(new SleepReporter.Unsubscribe(this.sleepAdapter));
         this.config.busyReporter.tell(new BusynessReporter.Unsubscribe(this.busyAdapter));
+        */
         getContext().stop(this.bpAdapter);
         getContext().stop(this.hrAdapter);
         getContext().stop(this.locAdapter);

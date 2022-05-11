@@ -164,7 +164,7 @@ public class RecommendationMetricsAggregator extends AbstractBehavior<Recommenda
     }
 
     private void Cleanup() {
-        config.locReporter.tell(new LocationReporter.Unsubscribe(this.locAdapter));
+        //config.locReporter.tell(new LocationReporter.Unsubscribe(this.locAdapter));
     }
 
     /************************************* 
