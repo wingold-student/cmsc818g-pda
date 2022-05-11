@@ -150,9 +150,13 @@ public class StressDetectionEngine extends AbstractBehavior<StressDetectionEngin
     private Behavior<Command> StressMeasurementProcess(AdaptedAggreatedMetrics wrapped){ 
         AggregatedStressMetrics metrics = wrapped.response;
         int stressLevel = 0;
+
+        // TODO: Check if empty
         int diastolicBP = metrics.bpReading.get().getDiastolicBP();
         int systolicBP = metrics.bpReading.get().getSystolicBP();
         int heartRate = metrics.hrReading.get().getheartrate();
+        int sleepHours = metrics.sleepReading.get().sleep;
+        int busyness = metrics.busyReading.get().level.get();
 
 
         getContext().getLog().info(" ML measure started ");
@@ -160,7 +164,11 @@ public class StressDetectionEngine extends AbstractBehavior<StressDetectionEngin
         try{
           String path = "src/main/java/com/cmsc818g/LOGISTIC_REGRESSION.py";
           ProcessBuilder pb = new ProcessBuilder("python3", path, 
-              "3", "2", "132", "80", "80"); // sleep-hour, busyness, bp-systolic, bp-diastolic, heart-rate
+              String.valueOf(sleepHours),
+              String.valueOf(busyness),
+              String.valueOf(systolicBP),
+              String.valueOf(diastolicBP),
+              String.valueOf(heartRate)); // sleep-hour, busyness, bp-systolic, bp-diastolic, heart-rate
           Process process = pb.start();
 
           BufferedReader bfr = new BufferedReader(new InputStreamReader(process.getInputStream()));
