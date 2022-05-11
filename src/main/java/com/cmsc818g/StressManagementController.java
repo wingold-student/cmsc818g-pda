@@ -127,8 +127,10 @@ public class StressManagementController extends AbstractBehavior<StressManagemen
       // recommendation engine tells controller the treatment method
       // or it directly talks to the UI Manager
       public final String message;
-      public RecommendEngineToController(String message) {
+      public final String treatment;
+      public RecommendEngineToController(String message, String treatment) {
         this.message = message;
+        this.treatment = treatment;
       }
     }//end of ControllerToRecommendEngine
 

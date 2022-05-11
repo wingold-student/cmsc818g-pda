@@ -62,6 +62,8 @@ public class StressRecommendationEngine extends AbstractBehavior<StressRecommend
     String sleepCondition;
     String locationCondition;
     int stressLevelReceived;
+    ActorRef<StressManagementController.Command> replyToSMC;
+
 
     
     public interface Command {}
@@ -158,11 +160,13 @@ public class StressRecommendationEngine extends AbstractBehavior<StressRecommend
       if(response.message == "recommend"){
           //recommend treatment     
           stressLevelReceived = response.currentStressLevel;
+          replyToSMC = response.replyTo;
           RecommendationMetricsConfig config = new RecommendationMetricsConfig(
             cfg.recommendationMetricsCounts,
             reporterRefs.get("Sleep"),
             reporterRefs.get("Location") 
           );
+          
         
           // TODO: Note this starts it immediately
           this.aggregator = getContext().spawn(RecommendationMetricsAggregator.create(config, this.aggregatorAdapter), "RecommednationAggregator");
@@ -197,28 +201,20 @@ public class StressRecommendationEngine extends AbstractBehavior<StressRecommend
       }
 
       switch(locReadingResults){
-        case "class room":
+        case "classroom":
+        case "restaurant":
+        case "gym":
+        case "conferenceroom":
           locationCondition = "public";
           break;
         case "office":
-          locationCondition = "personal";
-          break;
         case "home":
           locationCondition = "personal";
           break;
-        case "conference room":
-          locationCondition = "public";
-          break;
       }
       
-      // SELECT treatment
-      // FROM treatmentDB
-      // WHERE stress_level = stressLevelCondition
-      // AND sleep_condition = sleepCondition 
-      // AND location_condition = locationCondition;
-      //SELECT `treatment' FROM %s WHERE `stress-level' = %d AND `sleep-condition' = %s AND location-condition = %s",tableName, stressLevel, sleepCondition, locationCondition
-      try{
-        String sql = String.format("SELECT treatment FROM %s WHERE `stress-level' = %d AND `sleep-condition' = %s AND location-condition = %s",cfg.table, stressLevelReceived, sleepCondition, locationCondition);
+       try{
+        String sql = String.format("SELECT treatment FROM %s WHERE `stress-level` = %d AND `sleep-condition` = %s AND `location-condition` = %s",cfg.table, stressLevelReceived, sleepCondition, locationCondition);
 
         Logger logger = getContext().getLog();
         ActorPath myPath = getContext().getSelf().path();
@@ -237,11 +233,12 @@ public class StressRecommendationEngine extends AbstractBehavior<StressRecommend
 
           // Tell the Context Engine we've successfully read
           //msg.replyTo.tell(new Reporter.StatusOfRead(true, "Succesfully read row " + msg.rowNumber, myPath));
-          
+          replyToSMC.tell(new StressManagementController.RecommendEngineToController("recommendation",treatmentToSend)); 
+
           } else {
 
           // Tell the Context Engine we had a problem
-          //msg.replyTo.tell(new Reporter.StatusOfRead(false, "No results from row " + msg.rowNumber, myPath));
+          replyToSMC.tell(new StressManagementController.RecommendEngineToController("recommendation", "No results")); 
         }
       
         conn.close();
