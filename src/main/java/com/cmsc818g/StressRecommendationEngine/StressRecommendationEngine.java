@@ -174,6 +174,9 @@ public class StressRecommendationEngine extends AbstractBehavior<StressRecommend
           if(stressLevelReceived != oldStressLevelReceived){
           // TODO: Note this starts it immediately
             getContext().spawnAnonymous(RecommendationMetricsAggregator.create(config, this.aggregatorAdapter));
+          } else {
+            RecommendationData noRecommendation = new RecommendationData("", locReadingResults, sleepCondition, "");
+            replyToSMC.tell(new StressManagementController.RecommendEngineToController("recommendation", noRecommendation)); 
           }
 
           // TODO: Would want to move this to when results are actually ready
