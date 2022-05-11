@@ -129,7 +129,7 @@ public class StressDetectionEngine extends AbstractBehavior<StressDetectionEngin
        // TODO: Move into Measurement Process (since need to wait for results)
         int detected_level = knnPrediction(); //stress detection + measurement process
         getContext().getLog().info("Detection engine's stress level: "+ detected_level); 
-        response.replyTo.tell(new StressManagementController.DetectionEngineToController("healthInfo", detected_level));       
+       // response.replyTo.tell(new StressManagementController.DetectionEngineToController("healthInfo", detected_level));       
       }
       return this;
     }
