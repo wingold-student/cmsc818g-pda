@@ -94,7 +94,7 @@ public class StressDetectionEngine extends AbstractBehavior<StressDetectionEngin
 
     public StressDetectionEngine(ActorContext<Command> context, String configFilename) throws StreamReadException, DatabindException, IOException {
         super(context);
-        context.getLog().info("context engine actor created");
+        context.getLog().info("detection engine actor created");
 
         ObjectMapper yamlReader = new ObjectMapper(new YAMLFactory());
         InputStream cfgFilestream = getClass().getClassLoader().getResourceAsStream(configFilename);
