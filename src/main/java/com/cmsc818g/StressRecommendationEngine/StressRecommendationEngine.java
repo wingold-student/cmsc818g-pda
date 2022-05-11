@@ -29,6 +29,7 @@ import com.fasterxml.jackson.core.exc.StreamReadException;
 import com.fasterxml.jackson.databind.DatabindException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import com.typesafe.config.ConfigException.Null;
 
 import akka.actor.typed.ActorRef;
 import akka.actor.typed.Behavior;
@@ -60,6 +61,7 @@ public class StressRecommendationEngine extends AbstractBehavior<StressRecommend
     String locReadingResults = "";
     String sleepCondition;
     String locationCondition;
+    int stressLevelReceived;
 
     
     public interface Command {}
@@ -155,13 +157,12 @@ public class StressRecommendationEngine extends AbstractBehavior<StressRecommend
     private Behavior<Command> onEngineResponse(recommendEngineGreet response) { //when receive message
       if(response.message == "recommend"){
           //recommend treatment     
-
+          stressLevelReceived = response.currentStressLevel;
           RecommendationMetricsConfig config = new RecommendationMetricsConfig(
             cfg.recommendationMetricsCounts,
             reporterRefs.get("Sleep"),
             reporterRefs.get("Location") 
-            
-            );
+          );
         
           // TODO: Note this starts it immediately
           this.aggregator = getContext().spawn(RecommendationMetricsAggregator.create(config, this.aggregatorAdapter), "RecommednationAggregator");
@@ -179,6 +180,9 @@ public class StressRecommendationEngine extends AbstractBehavior<StressRecommend
       sleepReading = metrics.sleepReading;
       locReading = metrics.locReading;
       haveMetrics = true;
+      
+      locReadingResults = metrics.locReading.get().location;
+      sleepReadingResults = metrics.sleepReading.get().sleep;
       
 
 
@@ -214,21 +218,33 @@ public class StressRecommendationEngine extends AbstractBehavior<StressRecommend
       // AND location_condition = locationCondition;
       //SELECT `treatment' FROM %s WHERE `stress-level' = %d AND `sleep-condition' = %s AND location-condition = %s",tableName, stressLevel, sleepCondition, locationCondition
       try{
-        String sql = String.format("SSELECT `treatment' FROM %s WHERE `stress-level' = %d AND `sleep-condition' = %s AND location-condition = %s",cfg.table, stressLevel, sleepCondition, locationCondition);
+        String sql = String.format("SELECT treatment FROM %s WHERE `stress-level' = %d AND `sleep-condition' = %s AND location-condition = %s",cfg.table, stressLevel, sleepCondition, locationCondition);
 
         Logger logger = getContext().getLog();
         ActorPath myPath = getContext().getSelf().path();
         
         // Forms a connection to the database
-        Connection conn = Reporter.connectToDB(cfg.databaseURI, logger, msg.replyTo, myPath);
-        //what msg are we replying to?
+        Connection conn = SQLiteHandler.connectToDB(cfg.databaseURI, null, myPath);
 
         PreparedStatement statement;
         statement = conn.prepareStatement(sql);
-        statement.setInt(1, msg.rowNumber); // `id` is the only variable ( ? )
 
-        ResultSet results = Reporter.queryDB(cfg.databaseURI, statement, logger, msg.replyTo, myPath);
-        //replace 'sets'?
+        ResultSet results = SQLiteHandler.queryDB(cfg.databaseURI, statement, null, myPath);
+
+        if (results.next()) {
+          String treatmentToSend = results.getString("treatment");
+          results.close();
+
+          // Tell the Context Engine we've successfully read
+          //msg.replyTo.tell(new Reporter.StatusOfRead(true, "Succesfully read row " + msg.rowNumber, myPath));
+          
+          } else {
+
+          // Tell the Context Engine we had a problem
+          //msg.replyTo.tell(new Reporter.StatusOfRead(false, "No results from row " + msg.rowNumber, myPath));
+        }
+      
+        conn.close();
 
         //response.replyTo.tell(new StressManagementController.RecommendEngineToController("recommendation")); 
         //put response here?
@@ -236,13 +252,11 @@ public class StressRecommendationEngine extends AbstractBehavior<StressRecommend
       catch (ClassNotFoundException e) {
         String errorStr = "Failed find the SQLite drivers";
         getContext().getLog().error(errorStr, e);
-        getContext().getSelf().tell(StopReading.INSTANCE);
         //who to tell when failed?
         throw e;
     } catch(SQLException e) {
         String errorStr = String.format("Failed to execute SQL query ");
         getContext().getLog().error(errorStr, e);
-        getContext().getSelf().tell(StopReading.INSTANCE);
         throw e;
     }
 

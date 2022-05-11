@@ -135,7 +135,7 @@ public abstract class Reporter extends AbstractBehavior<Reporter.Command> {
         } catch(SQLException e) {
             String errorStr = String.format("Failed to execute SQL query %s on row %d from actor %s", sql, rowNumber, actorPath);
             getContext().getLog().error(errorStr, e);
-            getContext().getSelf().tell(StopReading.INSTANCE);
+            getContext().getSelf().tell();
             throw e;
         }
 
