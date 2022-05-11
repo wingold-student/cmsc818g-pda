@@ -1,6 +1,8 @@
 package com.cmsc818g.StressUIManager;
 
+import com.cmsc818g.StressUIManager.StressWebHandler.CombinedEngineData;
 import com.cmsc818g.StressUIManager.StressWebHandler.FrontEndData;
+import com.cmsc818g.StressUIManager.StressWebHandler.ReceiveCombinedData;
 
 import akka.actor.typed.ActorRef;
 import akka.actor.typed.Behavior;
@@ -13,11 +15,11 @@ import akka.actor.typed.javadsl.Receive;
 public class StressUIManager extends AbstractBehavior<StressUIManager.Command> {
     public interface Command {}
 
-    public final static class ReceiveRecommendationData implements Command {
-        public final FrontEndData recommendationData;
+    public final static class ReceiveCombinedData implements Command {
+        public final CombinedEngineData combinedData;
 
-        public ReceiveRecommendationData(FrontEndData recommendationData) {
-            this.recommendationData = recommendationData;
+        public ReceiveCombinedData(CombinedEngineData combinedData) {
+            this.combinedData = combinedData;
         }
     }
 
@@ -44,13 +46,13 @@ public class StressUIManager extends AbstractBehavior<StressUIManager.Command> {
     @Override
     public Receive<Command> createReceive() {
         return newReceiveBuilder()
-            .onMessage(ReceiveRecommendationData.class, this::onReceiveRecommendationData)
+            .onMessage(ReceiveCombinedData.class, this::onReceiveCombinedData)
             .onSignal(PostStop.class, signal -> onPostStop())
             .build();
     }
 
-    private Behavior<Command> onReceiveRecommendationData(ReceiveRecommendationData msg) {
-        webHandlerActor.tell(new StressWebHandler.ReceiveRecommendationData(msg.recommendationData));
+    private Behavior<Command> onReceiveCombinedData(ReceiveCombinedData msg) {
+        webHandlerActor.tell(new StressWebHandler.ReceiveCombinedData(msg.combinedData));
         return this;
     }
 

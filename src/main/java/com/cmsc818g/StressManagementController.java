@@ -9,8 +9,12 @@ import java.util.HashMap;
 import com.cmsc818g.StressContextEngine.StressContextEngine;
 import com.cmsc818g.StressContextEngine.Reporters.Reporter;
 import com.cmsc818g.StressDetectionEngine.StressDetectionEngine;
+import com.cmsc818g.StressDetectionEngine.StressDetectionEngine.DetectionData;
 import com.cmsc818g.StressRecommendationEngine.StressRecommendationEngine;
+import com.cmsc818g.StressRecommendationEngine.StressRecommendationEngine.RecommendationData;
 import com.cmsc818g.StressUIManager.StressUIManager;
+import com.cmsc818g.StressUIManager.StressWebHandler;
+import com.cmsc818g.StressUIManager.StressWebHandler.FrontEndData;
 import com.fasterxml.jackson.core.exc.StreamReadException;
 import com.fasterxml.jackson.databind.DatabindException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -41,6 +45,7 @@ public class StressManagementController extends AbstractBehavior<StressManagemen
     private TimerScheduler<Command> detect_timer;
     private final int readRate = 2;
 
+    private DetectionData latestDetectionData = null;
     protected static enum TellSelfToDetect implements Command {
       INSTANCE
     };
@@ -121,10 +126,11 @@ public class StressManagementController extends AbstractBehavior<StressManagemen
 
     public static class DetectionEngineToController implements Command {
       public final String message;
-      public DetectionEngineToController(String message, int level) {
+      public final DetectionData detectionData;
+
+      public DetectionEngineToController(String message, DetectionData detectionData) {
         this.message = message;
-        pastStressLevel = currentStressLevel;
-        currentStressLevel = level;
+        this.detectionData = detectionData;
       }
     }//end of DetectionEngineToController
 
@@ -132,10 +138,11 @@ public class StressManagementController extends AbstractBehavior<StressManagemen
       // recommendation engine tells controller the treatment method
       // or it directly talks to the UI Manager
       public final String message;
-      public final String treatment;
-      public RecommendEngineToController(String message, String treatment) {
+      public final RecommendationData recommendationData;
+
+      public RecommendEngineToController(String message, RecommendationData recommendationData) {
         this.message = message;
-        this.treatment = treatment;
+        this.recommendationData = recommendationData;
       }
     }//end of ControllerToRecommendEngine
 
@@ -209,13 +216,18 @@ public class StressManagementController extends AbstractBehavior<StressManagemen
     }
 
     private Behavior<Command> onDetectionEngineResponse(DetectionEngineToController response) {
-        getContext().getLog().info("Got response from Detection Engine: {}", response.message);
-       if(response.message != "healthInfo") return null;
-       getContext().getLog().info("Estimated Stress Level: "+ currentStressLevel);
-       //Recommendation process start
-       if(currentStressLevel != 100)
-          child_RecommendEngine.tell(new StressRecommendationEngine.recommendEngineGreet("recommend", 
-                            getContext().getSelf(), entityList, pastStressLevel, currentStressLevel));
+      getContext().getLog().info("Got response from Detection Engine: {}", response.message);
+      this.latestDetectionData = response.detectionData;
+
+      if(response.message != "healthInfo") return null;
+
+      getContext().getLog().info("Estimated Stress Level: "+ response.detectionData.currentStressLevel);
+
+      child_RecommendEngine.tell(
+        new StressRecommendationEngine.recommendEngineGreet("recommend", 
+                                                            getContext().getSelf(),
+                                                            response.detectionData.previousStressLevel,
+                                                            response.detectionData.currentStressLevel));
         return this;
     }
 
@@ -224,7 +236,9 @@ public class StressManagementController extends AbstractBehavior<StressManagemen
       if(response.message != "recommendation") return null;
 
       // TODO: Send message to UI Manager
-      // child_UIManager.tell(new StressUIManager.ReceiveRecommendationData());
+      child_UIManager.tell(new StressUIManager.ReceiveCombinedData(
+        new StressWebHandler.CombinedEngineData(response.recommendationData, this.latestDetectionData)
+      ));
       return this;
   }
   

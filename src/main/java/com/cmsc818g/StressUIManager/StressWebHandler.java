@@ -2,7 +2,6 @@ package com.cmsc818g.StressUIManager;
 
 import com.cmsc818g.StressDetectionEngine.StressDetectionEngine.DetectionData;
 import com.cmsc818g.StressRecommendationEngine.StressRecommendationEngine.RecommendationData;
-import com.cmsc818g.StressRecommendationEngine.StressRecommendationEngine.Treatment;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.annotation.JsonAppend;
@@ -41,11 +40,11 @@ public class StressWebHandler extends AbstractBehavior<StressWebHandler.Command>
         }
     }
 
-    public final static class ReceiveRecommendationData implements Command {
-        public final FrontEndData recommendationData;
+    public final static class ReceiveCombinedData implements Command {
+        public final CombinedEngineData combinedData;
 
-        public ReceiveRecommendationData(FrontEndData recommendationData) {
-            this.recommendationData = recommendationData;
+        public ReceiveCombinedData(CombinedEngineData combinedData) {
+            this.combinedData = combinedData;
         }
     }
 
@@ -71,7 +70,7 @@ public class StressWebHandler extends AbstractBehavior<StressWebHandler.Command>
     }
 
     private int replyId;
-    private FrontEndData data;
+    private CombinedEngineData data;
 
     public StressWebHandler(ActorContext<Command> context) {
         super(context);
@@ -117,7 +116,7 @@ public class StressWebHandler extends AbstractBehavior<StressWebHandler.Command>
         return newReceiveBuilder()
             .onMessage(GetTestJSON.class, this::onGetTestJSON)
             .onMessage(GetJSONData.class, this::onGetJSONData)
-            .onMessage(ReceiveRecommendationData.class, this::onReceiveRecommendationData)
+            .onMessage(ReceiveCombinedData.class, this::onReceiveCombinedData)
             .onSignal(PostStop.class, signal -> onPostStop())
             .build();
     }
@@ -141,7 +140,9 @@ public class StressWebHandler extends AbstractBehavior<StressWebHandler.Command>
     private Behavior<Command> onGetJSONData(GetJSONData msg) {
         DetectionData detectionData = this.data.detectionData;
         RecommendationData recommendationData = this.data.recommendationData;
-        String treatmentExists = (recommendationData.treatment != null ? "no" : "yes");
+        String treatmentExists = (recommendationData.treatmentDescription != null ? "no" : "yes");
+
+        Treatment treatment = null; //getTreatmentData(recommendationData.treatmentDescription);
 
         Data information = new Data(
             this.replyId++,
@@ -151,15 +152,15 @@ public class StressWebHandler extends AbstractBehavior<StressWebHandler.Command>
             detectionData.currentStressLevel,
             recommendationData.event,
             recommendationData.location,
-            recommendationData.treatment,
+            treatment,
             treatmentExists);
 
         msg.replyTo.tell(new GetJSONDataResponse(information));
         return this;
     }
 
-    private Behavior<Command> onReceiveRecommendationData(ReceiveRecommendationData msg) {
-        this.data = msg.recommendationData;
+    private Behavior<Command> onReceiveCombinedData(ReceiveCombinedData msg) {
+        //this.data = msg.recommendationData;
         return this;
     }
 
@@ -168,8 +169,31 @@ public class StressWebHandler extends AbstractBehavior<StressWebHandler.Command>
         return this;
     }
 
-    public static class FrontEndData {
+    public final static class Treatment {
+        public final String title;
+        public final String summary;
+        public final String url;
+
+        public Treatment(String title,
+                         String summary,
+                         String url) {
+            this.title = title;
+            this.summary = summary;
+            this.url = url;
+        }
+    }
+
+    public static class CombinedEngineData {
         RecommendationData recommendationData;
         DetectionData detectionData;
+        public CombinedEngineData(RecommendationData recommendationData, DetectionData detectionData) {
+            this.recommendationData = recommendationData;
+            this.detectionData = detectionData;
+        }
+    }
+
+    public static class FrontEndData {
+        CombinedEngineData combinedData;
+        Treatment treatment;
     }
 }

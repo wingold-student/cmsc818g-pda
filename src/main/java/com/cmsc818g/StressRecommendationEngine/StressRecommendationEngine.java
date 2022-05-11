@@ -76,17 +76,18 @@ public class StressRecommendationEngine extends AbstractBehavior<StressRecommend
       }
     }
     public static class recommendEngineGreet implements Command {
+        public final String message ;
         public final ActorRef<StressManagementController.Command> replyTo;
-        public final ArrayList<String> list;
         public final int pastStressLevel;
         public final int currentStressLevel;
-        String message ;
         
-        public recommendEngineGreet(String message, ActorRef<StressManagementController.Command> replyTo,
-        ArrayList<String> list, int past, int curr) {
+        public recommendEngineGreet(String message,
+                                   ActorRef<StressManagementController.Command> replyTo,
+                                   int past,
+                                   int curr)
+        {
           this.message = message;
           this.replyTo = replyTo;
-          this.list = list;
           this.pastStressLevel = past;
           this.currentStressLevel = curr;
         }
@@ -161,6 +162,7 @@ public class StressRecommendationEngine extends AbstractBehavior<StressRecommend
           //recommend treatment     
           stressLevelReceived = response.currentStressLevel;
           replyToSMC = response.replyTo;
+
           RecommendationMetricsConfig config = new RecommendationMetricsConfig(
             cfg.recommendationMetricsCounts,
             reporterRefs.get("Sleep"),
@@ -187,7 +189,6 @@ public class StressRecommendationEngine extends AbstractBehavior<StressRecommend
       
       locReadingResults = metrics.locReading.get().location;
       sleepReadingResults = metrics.sleepReading.get().sleep;
-      
 
 
       // TODO: Somewhat temporary. Could instead now call the actual recommendation algorithm
@@ -214,9 +215,8 @@ public class StressRecommendationEngine extends AbstractBehavior<StressRecommend
       }
       
        try{
-        String sql = String.format("SELECT treatment FROM %s WHERE `stress-level` = %d AND `sleep-condition` = %s AND `location-condition` = %s",cfg.table, stressLevelReceived, sleepCondition, locationCondition);
+        String sql = String.format("SELECT treatment FROM %s WHERE `stress-level` = %d AND `sleep-condition` = %s AND `location-condition` = %s", cfg.table, stressLevelReceived, sleepCondition, locationCondition);
 
-        Logger logger = getContext().getLog();
         ActorPath myPath = getContext().getSelf().path();
         
         // Forms a connection to the database
@@ -231,16 +231,20 @@ public class StressRecommendationEngine extends AbstractBehavior<StressRecommend
           String treatmentToSend = results.getString("treatment");
           results.close();
 
+          // TODO: Ask scheduler current event occurring
+          // this.reporterRefs["Scheduler"]
+          RecommendationData recommendationData = new RecommendationData("", locReadingResults, sleepCondition, treatmentToSend);
           // Tell the Context Engine we've successfully read
           //msg.replyTo.tell(new Reporter.StatusOfRead(true, "Succesfully read row " + msg.rowNumber, myPath));
-          replyToSMC.tell(new StressManagementController.RecommendEngineToController("recommendation",treatmentToSend)); 
+          replyToSMC.tell(new StressManagementController.RecommendEngineToController("recommendation", recommendationData)); 
 
           } else {
 
           // Tell the Context Engine we had a problem
-          replyToSMC.tell(new StressManagementController.RecommendEngineToController("recommendation", "No results")); 
+          replyToSMC.tell(new StressManagementController.RecommendEngineToController("recommendation error", null)); 
         }
       
+        statement.close();
         conn.close();
 
         //response.replyTo.tell(new StressManagementController.RecommendEngineToController("recommendation")); 
@@ -310,35 +314,22 @@ public class StressRecommendationEngine extends AbstractBehavior<StressRecommend
         }
     }
     
-    public final static class Treatment {
-        public final String title;
-        public final String summary;
-        public final String url;
-
-        public Treatment(String title,
-                         String summary,
-                         String url) {
-            this.title = title;
-            this.summary = summary;
-            this.url = url;
-        }
-    }
 
     public final static class RecommendationData {
       public final String event;
       public final String location;
       public final String sleepQuality;
-      public final Treatment treatment;
+      public final String treatmentDescription;
 
       public RecommendationData(String event,
                                 String location,
                                 String sleepQuality,
-                                Treatment treatment)
+                                String treatmentDescription)
       {
         this.event = event;
         this.location = location;
         this.sleepQuality = sleepQuality;
-        this.treatment = treatment;
+        this.treatmentDescription = treatmentDescription;
       }
     }
 }

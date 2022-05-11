@@ -14,6 +14,7 @@ import com.cmsc818g.StressContextEngine.Reporters.BloodPressureReporter.BloodPre
 import com.cmsc818g.StressContextEngine.Reporters.BusynessReporter.BusynessReading;
 import com.cmsc818g.StressContextEngine.Reporters.HeartRateReporter.HeartRate;
 import com.cmsc818g.StressContextEngine.Reporters.LocationReporter.LocationReading;
+import com.cmsc818g.StressContextEngine.Reporters.LocationReporter.UserLocation;
 import com.cmsc818g.StressContextEngine.Reporters.SleepReporter.SleepHours;
 import com.cmsc818g.StressDetectionEngine.DetectionMetricsAggregator.*;
 import com.fasterxml.jackson.core.exc.StreamReadException;
@@ -89,6 +90,7 @@ public class StressDetectionEngine extends AbstractBehavior<StressDetectionEngin
     private ActorRef<StressManagementController.Command> controller;
 
     private HashMap<String, ActorRef<Reporter.Command>> reporterRefs; 
+    private int previousStressLevel = 0, currentStressLevel = 0;
 
     public StressDetectionEngine(ActorContext<Command> context, String configFilename) throws StreamReadException, DatabindException, IOException {
         super(context);
@@ -152,6 +154,7 @@ public class StressDetectionEngine extends AbstractBehavior<StressDetectionEngin
         int systolicBP = metrics.bpReading.get().getSystolicBP();
         int heartRate = metrics.hrReading.get().getheartrate();
 
+
         getContext().getLog().info(" ML measure started ");
 
         try{
@@ -175,12 +178,25 @@ public class StressDetectionEngine extends AbstractBehavior<StressDetectionEngin
           String python_output = line;
 
           stressLevel = Integer.parseInt(String.valueOf(python_output.charAt(1)));
+          previousStressLevel = currentStressLevel;
+          currentStressLevel = stressLevel;
 
         }catch(Exception e){
             System.out.println(e);
         }
+
+        // TODO: Check if any of these are empty?
+        DetectionData detectionData = new DetectionData(metrics.bpReading.get(),
+                                                        metrics.hrReading.get(),
+                                                        metrics.sleepReading.get(),
+                                                        metrics.locReading.get(),
+                                                        metrics.busyReading.get(),
+                                                        previousStressLevel,
+                                                        currentStressLevel);
+
+
         getContext().getLog().info("Detection engine's stress level: "+ stressLevel); 
-        controller.tell(new StressManagementController.DetectionEngineToController("healthInfo", stressLevel));       
+        controller.tell(new StressManagementController.DetectionEngineToController("healthInfo", detectionData));       
         return this;
     }
 
@@ -235,7 +251,7 @@ public class StressDetectionEngine extends AbstractBehavior<StressDetectionEngin
       public final BloodPressure bp;
       public final HeartRate hr;
       public final SleepHours sleep;
-      public final LocationReading loc;
+      public final UserLocation loc;
       public final BusynessReading busy;
       public final int previousStressLevel;
       public final int currentStressLevel;
@@ -244,7 +260,7 @@ public class StressDetectionEngine extends AbstractBehavior<StressDetectionEngin
               BloodPressure bp,
               HeartRate hr,
               SleepHours sleep,
-              LocationReading loc,
+              UserLocation loc,
               BusynessReading busy,
               int previousStressLevel,
               int currentStressLevel)
