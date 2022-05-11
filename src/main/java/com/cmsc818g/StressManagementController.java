@@ -206,6 +206,9 @@ public class StressManagementController extends AbstractBehavior<StressManagemen
     private Behavior<Command> onRecommendEnginedResponse(RecommendEngineToController response) {
       getContext().getLog().info("Got response from Recommendation Engine: {}", response.message);
       if(response.message != "recommendation") return null;
+
+      // TODO: Send message to UI Manager
+      // child_UIManager.tell(new StressUIManager.ReceiveRecommendationData());
       return this;
   }
   
