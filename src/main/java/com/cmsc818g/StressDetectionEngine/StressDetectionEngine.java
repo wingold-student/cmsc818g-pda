@@ -133,7 +133,7 @@ public class StressDetectionEngine extends AbstractBehavior<StressDetectionEngin
         );
 
         this.aggregator = getContext().spawn(DetectionMetricsAggregator.create(this.aggregatorAdapter, metricsConfig), "DetectionAggregator");
-        controller = response.replyTo ; 
+        controller = response.replyTo; 
       }
       return this;
     }
@@ -195,7 +195,7 @@ public class StressDetectionEngine extends AbstractBehavior<StressDetectionEngin
                                                         currentStressLevel);
 
         getContext().getLog().info("Detection engine's stress level: "+ stressLevel); 
-        //controller.tell(new StressManagementController.DetectionEngineToController("healthInfo", detectionData));       
+        controller.tell(new StressManagementController.DetectionEngineToController("healthInfo", detectionData));       
         return this;
     }
 
