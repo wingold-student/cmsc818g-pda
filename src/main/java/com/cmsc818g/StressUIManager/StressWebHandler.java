@@ -97,6 +97,7 @@ public class StressWebHandler extends AbstractBehavior<StressWebHandler.Command>
 
         treatmentData.put("deep breathing exercise",
                         new Treatment(
+                            1,
                             "Breathing exercise",
                             "A deep breathing exercise",
                             "img/deep_breathing_exercise.gif"));
@@ -104,48 +105,56 @@ public class StressWebHandler extends AbstractBehavior<StressWebHandler.Command>
 
         treatmentData.put("meditation",
                         new Treatment(
+                            2,
                             "Meditation Guide",
                             "Guide to Meditation",
                             "img/meditation.jpg"));
 
         treatmentData.put("work out",
                         new Treatment(
+                            3,
                             "Try Working Out",
                             "Working out",
                             "img/workout.jpg"));
 
         treatmentData.put("take a walk",
                         new Treatment(
+                            4,
                             "Try Taking a Walk",
                             "Taking a walk can help",
                             "img/take_a_walk.jpg"));
 
         treatmentData.put("mindfulness meditation",
                         new Treatment(
+                            5,
                             "Mindfullness Meditation",
                             "Take some time to inspect your mind",
                             "img/mindfulness_meditation.jpg"));
 
         treatmentData.put("relaxation to music",
                         new Treatment(
+                            6,
                             "Relaxing Music",
                             "Try some relaxing music to soothe your mind",
                             "img/relaxation_to_music.jpg"));
 
         treatmentData.put("cancel plans",
                         new Treatment(
+                            7,
                             "Cancel Plans",
                             "You may want to cancel some plans to give you some time to breathe",
                             "img/cancel_plans.jpg"));
 
         treatmentData.put("cancel plans and get some sleep",
                         new Treatment(
+                            8,
                             "Cancel Plans, You Need Sleep",
                             "You may want to cancel some plans and get some sleep",
                             "img/cancel_plans_and_get_some_sleep.jpg"));
 
         treatmentData.put("contact therapist or close friends and family",
                         new Treatment(
+                            9,
                             "Give your Therapist or Close Friend/Family a Call",
                             "Try giving a call to someone for support",
                             "img/contact.jpg"));
@@ -224,7 +233,7 @@ public class StressWebHandler extends AbstractBehavior<StressWebHandler.Command>
     }
 
     private Behavior<Command> onGetTestJSON(GetTestJSON msg) {
-        Treatment exampleTreatment = new Treatment("title", "summary", "url");
+        Treatment exampleTreatment = new Treatment(0,"title", "summary", "url");
         Data exampleData = new Data(0,
                                     0,
                                    0,
@@ -311,14 +320,17 @@ public class StressWebHandler extends AbstractBehavior<StressWebHandler.Command>
     }
 
     public final static class Treatment {
+        public final int id;
         public final String title;
         public final String summary;
         public final String url;
 
-        public Treatment(String title,
+        public Treatment(int id,
+                         String title,
                          String summary,
                          String url) {
             this.title = title;
+            this.id = id;
             this.summary = summary;
             this.url = url;
         }
