@@ -1,3 +1,5 @@
 recommendationMetricsCounts:
   sleepCount: 1
   locCount: 1
+databaseURI: jdbc:sqlite:src/main/resources/TreatmentDB.db
+table: treatment

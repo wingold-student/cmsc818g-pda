@@ -151,10 +151,10 @@ public class StressRecommendationEngine extends AbstractBehavior<StressRecommend
           
 
           // TODO: Note this starts it immediately
-          // this.aggregator = getContext().spawn(RecommendationMetricsAggregator.create(config, this.aggregatorAdapter), "RecommednationAggregator");
+          this.aggregator = getContext().spawn(RecommendationMetricsAggregator.create(config, this.aggregatorAdapter), "RecommednationAggregator");
 
           // TODO: Would want to move this to when results are actually ready
-          response.replyTo.tell(new StressManagementController.RecommendEngineToController("recommendation")); 
+          //response.replyTo.tell(new StressManagementController.RecommendEngineToController("recommendation")); 
           //this.tell(new SleepReporter.AskSleepHours(getContext().getSelf()))
       }
       return this;
@@ -165,7 +165,6 @@ public class StressRecommendationEngine extends AbstractBehavior<StressRecommend
 
       sleepReading = metrics.sleepReading;
       locReading = metrics.locReading;
-
       haveMetrics = true;
 
       // TODO: Somewhat temporary. Could instead now call the actual recommendation algorithm
@@ -198,7 +197,7 @@ public class StressRecommendationEngine extends AbstractBehavior<StressRecommend
       // WHERE stress_level = stressLevelCondition
       // AND sleep_condition = sleepCondition 
       // AND location_condition = locationCondition;
-      // return this;
+      return this;
     }
 
     private Behavior<Command> onReporterRefs(ReporterRefs msg) {
@@ -229,7 +228,10 @@ public class StressRecommendationEngine extends AbstractBehavior<StressRecommend
     }
     public static class RecommendationConfig {
       public RecommendationMetricsCounts recommendationMetricsCounts;
+      public String databaseURI;
+      public String table;
     }
+
     public static class RecommendationMetricsConfig {
         public final ActorRef<Reporter.Command> sleepReporter;
         public final ActorRef<Reporter.Command> locReporter;
