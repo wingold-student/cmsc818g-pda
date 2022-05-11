@@ -131,26 +131,27 @@ public class StressWebHandler extends AbstractBehavior<StressWebHandler.Command>
                             "Take some time to inspect your mind",
                             "img/mindfulness_meditation.jpg"));
 
-        treatmentData.put("relaxation to music",
-                        new Treatment(
-                            6,
-                            "Relaxing Music",
-                            "Try some relaxing music to soothe your mind",
-                            "img/relaxation_to_music.jpg"));
 
         treatmentData.put("cancel plans",
                         new Treatment(
-                            7,
+                            6,
                             "Cancel Plans",
                             "You may want to cancel some plans to give you some time to breathe",
                             "img/cancel_plans.jpg"));
 
         treatmentData.put("cancel plans and get some sleep",
                         new Treatment(
-                            8,
+                            7,
                             "Cancel Plans, You Need Sleep",
                             "You may want to cancel some plans and get some sleep",
                             "img/cancel_plans_and_get_some_sleep.jpg"));
+
+        treatmentData.put("relaxation to music",
+                        new Treatment(
+                            8,
+                            "Relaxing Music",
+                            "Try some relaxing music to soothe your mind",
+                            "img/relaxation_to_music.jpg"));
 
         treatmentData.put("contact therapist or close friends and family",
                         new Treatment(
