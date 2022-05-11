@@ -164,6 +164,7 @@ public class StressManagementController extends AbstractBehavior<StressManagemen
         .onMessage(DetectionEngineToController.class, this::onDetectionEngineResponse)
         .onMessage(RecommendEngineToController.class, this::onRecommendEnginedResponse)
         .onMessage(UIManagerToController.class, this::onUIManagerResponse)
+        .onMessage(TellToDetect.class, this::onTellSelfToDetect)
         .onSignal(Terminated.class , sig -> Behaviors.stopped())
         .onSignal(PostStop.class, signal -> onPostStop())
         .build();
