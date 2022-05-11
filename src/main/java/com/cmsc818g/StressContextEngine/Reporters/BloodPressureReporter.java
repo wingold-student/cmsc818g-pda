@@ -152,7 +152,7 @@ public class BloodPressureReporter extends Reporter {
      * @throws Exception
      */
     protected Behavior<Reporter.Command> onReadRowOfData(Reporter.ReadRowOfData msg) throws ClassNotFoundException, SQLException {
-        getContext().getLog().info("Reading row of data " + msg.rowNumber);
+        // getContext().getLog().info("Reading row of data " + msg.rowNumber);
         ActorPath myPath = getContext().getSelf().path();
 
         // Query itself with variables to be filled
@@ -260,8 +260,8 @@ public class BloodPressureReporter extends Reporter {
      *************************************/
     public class BloodPressure {
         final Optional<String> readingTime;
-        final int systolic;
-        final int diastolic;
+        public final int systolic;
+        public final int diastolic;
 
         public BloodPressure(Optional<String> readingTime, int systolic, int diastolic) {
             this.readingTime = readingTime;

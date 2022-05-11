@@ -255,7 +255,7 @@ public class BusynessReporter extends Reporter {
     }
 
     public class BusynessReading {
-        public Optional<Integer> level;
+        public final Optional<Integer> level;
 
         public BusynessReading(Optional<Integer> busyLevel) {
             this.level = busyLevel;

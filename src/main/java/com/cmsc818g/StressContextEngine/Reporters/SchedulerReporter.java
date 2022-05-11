@@ -489,10 +489,10 @@ public class SchedulerReporter extends Reporter {
         }
     }
     public class CalendarEvent {
-        final String eventName;
-        final DateTime datetime;
-        final Duration length;
-        final String calendarType;
+        public final String eventName;
+        public final DateTime datetime;
+        public final Duration length;
+        public final String calendarType;
 
         public CalendarEvent(String eventName, DateTime datetime, Duration length, String calendarType) {
             this.eventName = eventName;

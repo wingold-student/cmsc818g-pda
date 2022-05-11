@@ -272,8 +272,8 @@ public class HeartRateReporter extends Reporter {
      * HELPER CLASSES
      *************************************/
     public class HeartRate {
-        final Optional<String> readingTime;
-        final int heartrate;
+        public final Optional<String> readingTime;
+        public final int heartrate;
 
         public HeartRate(Optional<String> readingTime, int hr_value) {
             this.readingTime = readingTime;
