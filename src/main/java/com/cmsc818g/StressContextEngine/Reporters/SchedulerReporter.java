@@ -404,7 +404,7 @@ public class SchedulerReporter extends Reporter {
             if (results != null)
                 results.close();
         }
-            
+             
         return this;
     }
 

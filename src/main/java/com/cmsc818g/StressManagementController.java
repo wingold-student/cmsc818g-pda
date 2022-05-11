@@ -34,34 +34,33 @@ public class StressManagementController extends AbstractBehavior<StressManagemen
 {
   public interface Command { }
     public static ArrayList<String> entityList = new ArrayList<String>();
-    public static int pastStressLevel = 0;
-    public static int currentStressLevel = 0;
+    public int currentStressLevel = 0;
     
     private final ControllerConfig cfg;
-    public final ActorRef<StressContextEngine.Command> child_ContextEngine;
-    public final ActorRef<StressDetectionEngine.Command> child_DetectionEngine;
-    public final ActorRef<StressRecommendationEngine.Command> child_RecommendEngine;
-    public final ActorRef<StressUIManager.Command> child_UIManager;
+    public  ActorRef<StressContextEngine.Command> child_ContextEngine;
+    public  ActorRef<StressDetectionEngine.Command> child_DetectionEngine;
+    public  ActorRef<StressRecommendationEngine.Command> child_RecommendEngine;
+    public  ActorRef<StressUIManager.Command> child_UIManager;
     private TimerScheduler<Command> detect_timer;
     private final int readRate = 2;
-
     private DetectionData latestDetectionData = null;
-    protected static enum TellSelfToDetect implements Command {
+
+    protected static enum TellToDetect implements Command {
       INSTANCE
     };
 
-    public StressManagementController(ActorContext<Command> context, String configFilename) throws StreamReadException, DatabindException, IOException {
+    public StressManagementController(ActorContext<Command> context, String configFilename, 
+                                      TimerScheduler<Command> timer) throws StreamReadException, DatabindException, IOException {
         super(context); 
         getContext().getLog().info("Controller Actor created");
 
-        // TODO: THESE ARE TEMPORARY
         String databaseURI = "jdbc:sqlite:src/main/resources/DemoScenario.db";
         String tableName = "ScenarioForDemo";
 
         InputStream is = getClass().getClassLoader().getResourceAsStream(configFilename);
         ObjectMapper yamlReader = new ObjectMapper(new YAMLFactory());
         this.cfg = yamlReader.readValue(is, ControllerConfig.class);
-
+        this.detect_timer = timer;
         /* Entity Manager gets/spawns Entities 
           child_EntityManager = context.spawn(StressEntityManager.create(), "StressEntityManager");
           context.watch(child_EntityManager);
@@ -85,13 +84,11 @@ public class StressManagementController extends AbstractBehavior<StressManagemen
 
     }
 
-    public static void controllerProcess() {
-      return;
-    }//end of controllerProcess
-
     public static Behavior<StressManagementController.Command> create(String configFilename) {
-      return Behaviors.setup(context -> new StressManagementController(context, configFilename));
+      return Behaviors.setup(context -> Behaviors.withTimers(
+               detect_timer -> new StressManagementController(context, configFilename, detect_timer)));
     }
+
   /* 
   ------------------------------------------------------------------------
       Response/Reply Message between controller and Entity Manager
@@ -199,21 +196,22 @@ public class StressManagementController extends AbstractBehavior<StressManagemen
           child_DetectionEngine.tell(new StressDetectionEngine.ReporterRefs(response.reporterRefs));
           child_RecommendEngine.tell(new StressRecommendationEngine.ReporterRefs(response.reporterRefs));
 
-          // Start periodic detection
-          child_DetectionEngine.tell(new StressDetectionEngine.detectionEngineGreet("detect",getContext().getSelf()));
-          //getContext().getLog().info("Starting periodic reads of data");
-          // detect_timer.startTimerAtFixedRate("detect-periodic",
-          //                             TellSelfToDetect.INSTANCE,
-          //                             Duration.ofSeconds(readRate));
-        }
+         // Start periodic detection
+          getContext().getLog().info("Start periodic detection");
+
+          detect_timer.startTimerAtFixedRate("detection-timer",
+                                              TellToDetect.INSTANCE,
+                                      Duration.ofSeconds(readRate));
+          
+        }//end of else
         return this;
     }
 
-    protected Behavior<StressManagementController.Command> onTellSelfToDetect(TellSelfToDetect msg) {
-       getContext().getLog().info("tell detection engine to read periodically");
-       child_DetectionEngine.tell(new StressDetectionEngine.detectionEngineGreet("detect",getContext().getSelf()));
-      return this;
-    }
+      protected Behavior<Command> onTellSelfToDetect(TellToDetect msg) {
+        getContext().getLog().info("tell detection engine to read periodically");
+        child_DetectionEngine.tell(new StressDetectionEngine.detectionEngineGreet("detect",getContext().getSelf()));
+        return this;
+      }
 
     private Behavior<Command> onDetectionEngineResponse(DetectionEngineToController response) {
       getContext().getLog().info("Got response from Detection Engine: {}", response.message);
