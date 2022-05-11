@@ -174,11 +174,13 @@ public class DetectionMetricsAggregator extends AbstractBehavior<DetectionMetric
         config.bpReporter.tell(new BloodPressureReporter.Subscribe(this.bpAdapter));       
         config.hrReporter.tell(new HeartRateReporter.Subscribe(this.hrAdapter));
         config.locReporter.tell(new LocationReporter.Subscribe(this.locAdapter));
+        config.sleepReporter.tell(new SleepReporter.Subscribe(this.sleepAdapter));
+        config.busyReporter.tell(new BusynessReporter.Subscribe(this.busyAdapter));
 
         // TODO: Query medical for some sort of data?
         config.medicalReporter.tell(new MedicalHistoryReporter.SendQuery("", this.medicalAdapter));
-        config.busyReporter.tell(new BusynessReporter.GetCurrentBusynessLevel(this.busyAdapter));
-        config.sleepReporter.tell(new SleepReporter.ReadSleepHours(this.sleepAdapter));
+        // config.busyReporter.tell(new BusynessReporter.GetCurrentBusynessLevel(this.busyAdapter)); // TODO: Starts with an emtpy value, so it is null
+        // config.sleepReporter.tell(new SleepReporter.ReadSleepHours(this.sleepAdapter)); // TODO: Starts with an emtpy value, so it is null
     }
 
 
