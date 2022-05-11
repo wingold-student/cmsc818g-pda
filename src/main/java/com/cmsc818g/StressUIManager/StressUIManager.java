@@ -1,5 +1,7 @@
 package com.cmsc818g.StressUIManager;
 
+import com.cmsc818g.StressUIManager.StressWebHandler.FrontEndData;
+
 import akka.actor.typed.ActorRef;
 import akka.actor.typed.Behavior;
 import akka.actor.typed.PostStop;
@@ -10,6 +12,14 @@ import akka.actor.typed.javadsl.Receive;
 
 public class StressUIManager extends AbstractBehavior<StressUIManager.Command> {
     public interface Command {}
+
+    public final static class ReceiveRecommendationData implements Command {
+        public final FrontEndData recommendationData;
+
+        public ReceiveRecommendationData(FrontEndData recommendationData) {
+            this.recommendationData = recommendationData;
+        }
+    }
 
     public static Behavior<Command> create() {
         return Behaviors.setup(context -> new StressUIManager(context));
@@ -34,8 +44,14 @@ public class StressUIManager extends AbstractBehavior<StressUIManager.Command> {
     @Override
     public Receive<Command> createReceive() {
         return newReceiveBuilder()
+            .onMessage(ReceiveRecommendationData.class, this::onReceiveRecommendationData)
             .onSignal(PostStop.class, signal -> onPostStop())
             .build();
+    }
+
+    private Behavior<Command> onReceiveRecommendationData(ReceiveRecommendationData msg) {
+        webHandlerActor.tell(new StressWebHandler.ReceiveRecommendationData(msg.recommendationData));
+        return this;
     }
 
     private StressUIManager onPostStop() {

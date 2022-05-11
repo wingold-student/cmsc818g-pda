@@ -52,6 +52,10 @@ public class WebRoutes {
         return AskPattern.ask(webHandlerActor, ref -> new StressWebHandler.GetTestJSON(ref), askTimeout, scheduler);
     }
 
+    private CompletionStage<StressWebHandler.GetJSONDataResponse> getJSONData() {
+        return AskPattern.ask(webHandlerActor, ref -> new StressWebHandler.GetJSONData(ref), askTimeout, scheduler);
+    }
+
     // Manages the routes the server will handle and what to do
     public Route webRoutes() {
         return respondWithDefaultHeader(RawHeader.create("Access-Control-Allow-Origin", "*"), () ->
