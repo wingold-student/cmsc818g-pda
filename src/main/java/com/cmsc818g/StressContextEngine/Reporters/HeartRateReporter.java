@@ -270,7 +270,7 @@ public class HeartRateReporter extends Reporter {
     /************************************* 
      * HELPER CLASSES
      *************************************/
-    public class HeartRate {
+    public static class HeartRate {
         public final Optional<String> readingTime;
         public final int heartrate;
 

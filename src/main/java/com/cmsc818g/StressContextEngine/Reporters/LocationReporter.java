@@ -256,7 +256,7 @@ public class LocationReporter extends Reporter {
     /************************************* 
      * HELPER CLASSES
      *************************************/
-    public class UserLocation {
+    public static class UserLocation {
         final public Optional<String> readingTime;
         final public String location;
 

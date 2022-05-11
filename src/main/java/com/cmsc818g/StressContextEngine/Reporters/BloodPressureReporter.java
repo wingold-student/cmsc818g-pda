@@ -257,7 +257,7 @@ public class BloodPressureReporter extends Reporter {
     /************************************* 
      * HELPER CLASSES
      *************************************/
-    public class BloodPressure {
+    public static class BloodPressure {
         final Optional<String> readingTime;
         public final int systolic;
         public final int diastolic;

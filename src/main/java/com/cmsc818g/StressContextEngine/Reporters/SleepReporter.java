@@ -103,6 +103,7 @@ public class SleepReporter extends Reporter {
     private static final String periodicTimerName = "sleep-periodic";
     private Optional<SleepHours> lastReading;
     private final ActorRef<Topic.Command<SleepHoursReading>> sleepTopic;
+    private int subscriberCount;
 
     /**
      * Creates a BloodPressureReporter.
@@ -121,6 +122,7 @@ public class SleepReporter extends Reporter {
     {
         super(context, timers, periodicTimerName, statusListener, databaseURI, tableName, readRate);
         this.lastReading = Optional.empty();
+        this.subscriberCount = 0;
         this.sleepTopic = context.spawn(Topic.create(SleepHoursReading.class, "sleep-topic"), "sleep-topic");
     }
 
@@ -186,9 +188,11 @@ public class SleepReporter extends Reporter {
 
                 // TODO: Have read first row when starting up to initialize a value?
                 // Really just for ease
-                this.sleepTopic.tell(Topic.publish(
-                    new SleepHoursReading(Optional.of(sleepValue))
-                ));
+                if (subscriberCount > 0) {
+                    this.sleepTopic.tell(Topic.publish(
+                        new SleepHoursReading(Optional.of(sleepValue))
+                    ));
+                }
                 // Tell the Context Engine we've successfully read
                 msg.replyTo.tell(new SQLiteHandler.StatusOfRead(true, "Succesfully read row " + msg.rowNumber, myPath));
             } else {
@@ -228,12 +232,14 @@ public class SleepReporter extends Reporter {
     private Behavior<Reporter.Command> onSubscribe(Subscribe msg) {
         getContext().getLog().info("New subscriber added");
         this.sleepTopic.tell(Topic.subscribe(msg.subscriber));
+        this.subscriberCount++;
         return this;
     }
 
     private Behavior<Reporter.Command> onUnsubscribe(Unsubscribe msg) {
         getContext().getLog().info("Actor has unsubscribed");
         this.sleepTopic.tell(Topic.unsubscribe(msg.subscriber));
+        this.subscriberCount--;
         return this;
     }
 
@@ -252,7 +258,7 @@ public class SleepReporter extends Reporter {
     /************************************* 
      * HELPER CLASSES
      *************************************/
-    public class SleepHours {
+    public static class SleepHours {
         final Optional<String> readingTime;
         final public int sleep;
 

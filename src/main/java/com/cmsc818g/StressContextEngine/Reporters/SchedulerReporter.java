@@ -487,7 +487,7 @@ public class SchedulerReporter extends Reporter {
             this.tableName = tableName;
         }
     }
-    public class CalendarEvent {
+    public static class CalendarEvent {
         public final String eventName;
         public final DateTime datetime;
         public final Duration length;

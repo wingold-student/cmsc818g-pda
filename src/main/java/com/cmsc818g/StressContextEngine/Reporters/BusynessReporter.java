@@ -146,6 +146,7 @@ public class BusynessReporter extends Reporter {
     private ActorRef<SchedulerReporter.UpdateEventResponse> updateEventAdapter;
     private Optional<BusynessReading> lastReading;
     private final ActorRef<Topic.Command<BusynessLevelResponse>> busyTopic;
+    private int subscriberCount;
 
     public BusynessReporter(ActorContext<Reporter.Command> context,
                             TimerScheduler<Reporter.Command> timers,
@@ -158,6 +159,7 @@ public class BusynessReporter extends Reporter {
 
         super(context, timers, periodicTimerName, statusListener, databaseURI, tableName, readRate);
         this.schedulerReporter = schedulerReporter;
+        this.subscriberCount = 0;
 
         this.schedulerAdapter = context.messageAdapter(SchedulerReporter.Response.class, WrappedSchedulerResponse::new);
         this.updateEventAdapter = context.messageAdapter(SchedulerReporter.UpdateEventResponse.class, WrappedUpdateEventResponse::new);
@@ -211,9 +213,11 @@ public class BusynessReporter extends Reporter {
                 this.lastReading = Optional.of(reading);
                 msg.replyTo.tell(new SQLiteHandler.StatusOfRead(true, "Succesfully read row " + msg.rowNumber, myPath));
 
-                this.busyTopic.tell(Topic.publish(
-                    new BusynessLevelResponse(Optional.of(reading))
-                ));
+                if (subscriberCount > 0) {
+                    this.busyTopic.tell(Topic.publish(
+                        new BusynessLevelResponse(Optional.of(reading))
+                    ));
+                }
 
             } else {
                 this.lastReading = Optional.empty();
@@ -274,12 +278,14 @@ public class BusynessReporter extends Reporter {
     private Behavior<Reporter.Command> onSubscribe(Subscribe msg) {
         getContext().getLog().info("New subscriber added");
         this.busyTopic.tell(Topic.subscribe(msg.subscriber));
+        this.subscriberCount++;
         return this;
     }
 
     private Behavior<Reporter.Command> onUnsubscribe(Unsubscribe msg) {
         getContext().getLog().info("Actor has unsubscribed");
         this.busyTopic.tell(Topic.unsubscribe(msg.subscriber));
+        this.subscriberCount--;
         return this;
     }
 
@@ -292,7 +298,7 @@ public class BusynessReporter extends Reporter {
 
     }
 
-    public class BusynessReading {
+    public static class BusynessReading {
         public final Optional<Integer> level;
 
         public BusynessReading(Optional<Integer> busyLevel) {
