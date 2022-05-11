@@ -6,6 +6,7 @@ import java.io.InputStreamReader;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.Duration;
 
 import com.cmsc818g.StressManagementController;
 import com.cmsc818g.StressContextEngine.Reporters.Reporter;
@@ -27,6 +28,7 @@ import akka.actor.typed.javadsl.AbstractBehavior;
 import akka.actor.typed.javadsl.ActorContext;
 import akka.actor.typed.javadsl.Behaviors;
 import akka.actor.typed.javadsl.Receive;
+import akka.actor.typed.javadsl.TimerScheduler;
 /*
 message from controller:
     Detection engine start
@@ -45,13 +47,11 @@ public class StressDetectionEngine extends AbstractBehavior<StressDetectionEngin
 
     public static class detectionEngineGreet implements Command {
         public final ActorRef<StressManagementController.Command> replyTo;
-        public final ArrayList<String> list;
         public String message; 
 
-        public detectionEngineGreet(String message, ActorRef<StressManagementController.Command> ref,  ArrayList<String> list) {
+        public detectionEngineGreet(String message, ActorRef<StressManagementController.Command> ref) {
           this.message = message;
           this.replyTo = ref;
-          this.list = list;
         }
     }//end of class detectionEngineGreet
 
@@ -86,6 +86,7 @@ public class StressDetectionEngine extends AbstractBehavior<StressDetectionEngin
     private final DetectionConfig cfg;
     private ActorRef<DetectionMetricsAggregator.Command> aggregator;
     private final ActorRef<DetectionMetricsAggregator.AggregatedStressMetrics> aggregatorAdapter;
+    private ActorRef<StressManagementController.Command> controller;
 
     private HashMap<String, ActorRef<Reporter.Command>> reporterRefs; 
 
@@ -129,14 +130,8 @@ public class StressDetectionEngine extends AbstractBehavior<StressDetectionEngin
             reporterRefs.get("Medical") 
         );
 
-        // this.aggregator = getContext().spawn(DetectionMetricsAggregator.create(this.aggregatorAdapter, metricsConfig), "DetectionAggregator");
-
-        // TODO: Move into Measurement Process (since need to wait for results)
-        // int detected_level = knnPrediction(); //stress detection + measurement process
-
-        // getContext().getLog().info("Detection engine's stress level: "+ detected_level); 
-
-        // response.replyTo.tell(new StressManagementController.DetectionEngineToController("healthInfo", detected_level));       
+        this.aggregator = getContext().spawn(DetectionMetricsAggregator.create(this.aggregatorAdapter, metricsConfig), "DetectionAggregator");
+        controller = response.replyTo ; 
       }
       return this;
     }
@@ -153,50 +148,16 @@ public class StressDetectionEngine extends AbstractBehavior<StressDetectionEngin
     private Behavior<Command> StressMeasurementProcess(AdaptedAggreatedMetrics wrapped){ 
         AggregatedStressMetrics metrics = wrapped.response;
         int stressLevel = 0;
-
         int diastolicBP = metrics.bpReading.get().getDiastolicBP();
         int systolicBP = metrics.bpReading.get().getSystolicBP();
         int heartRate = metrics.hrReading.get().getheartrate();
 
-        // TODO: Get the rest of the metrics out as well to use
-
-      //stress detection process
-      getContext().getLog().info("BloodPressure: diastolicBP: "+ diastolicBP + ",  systolicBP " + systolicBP);
-      //Blood Pressure 
-      if((diastolicBP > 120 || systolicBP > 180)||
-              (diastolicBP > 120 && systolicBP > 180)) { //emergency detected 
-                stressLevel = 5;
-      }
-      else if((diastolicBP >= 90 && diastolicBP <= 120)||
-              (systolicBP >= 140 && systolicBP <= 180)) { // Hypertension stage 2
-                stressLevel = 4;
-      }
-      else if((diastolicBP >= 80 && diastolicBP < 90)||
-              (systolicBP >= 130&& systolicBP < 140)) { // Hypertension stage 1
-                stressLevel = 3;
-      }
-      else if(diastolicBP < 80 &&
-             (systolicBP >= 120 && systolicBP < 130)) {  // Elevated
-              stressLevel = 2;
-      }
-      else if(diastolicBP < 80 && systolicBP < 120) { // Normal 
-        stressLevel = 1;
-      }
-      return this;
-    }
-
-    private Behavior<Command> onReporterRefs(ReporterRefs msg) {
-      this.reporterRefs = msg.reporterRefs;
-      return this;
-    }
-
-    private int knnPrediction(){
-        getContext().getLog().info("knn measure started ");
+        getContext().getLog().info(" ML measure started ");
 
         try{
-          //ProcessBuilder pb = new ProcessBuilder(Arrays.asList("<Absolute Path to Python>/python", pythonPath));
-          String path = "/Users/yoonie/Desktop/test/cmsc818g-pda/src/main/java/com/cmsc818g/KNN.py";
-          ProcessBuilder pb = new ProcessBuilder("python3", path, "3", "2", "132", "80", "80"); // sleep-hour, busyness, bp-systolic, bp-diastolic, heart-rate
+          String path = "src/main/java/com/cmsc818g/LOGISTIC_REGRESSION.py";
+          ProcessBuilder pb = new ProcessBuilder("python3", path, 
+              "3", "2", "132", "80", "80"); // sleep-hour, busyness, bp-systolic, bp-diastolic, heart-rate
           Process process = pb.start();
 
           BufferedReader bfr = new BufferedReader(new InputStreamReader(process.getInputStream()));
@@ -207,29 +168,25 @@ public class StressDetectionEngine extends AbstractBehavior<StressDetectionEngin
           if ((len = process.getErrorStream().available()) > 0) {
               byte[] buf = new byte[len];
               process.getErrorStream().read(buf);
-              System.err.println("Command error:\""+new String(buf)+"\"");
+              //System.err.println("Command error:\""+new String(buf)+"\"");
           }
           line = bfr.readLine();
-          System.out.println("KNN output : " + line); // [2.]
+          //System.out.println("Python output : " + line); // [2.]
           String python_output = line;
 
-          return Integer.parseInt(String.valueOf(python_output.charAt(1)));
+          stressLevel = Integer.parseInt(String.valueOf(python_output.charAt(1)));
 
-          //String parser example
-          // char[] char_arr = new char[python_output.length()];
-          // for(int i=0 ; i<char_arr.length ; i++ ){
-          //   char_arr[i] = python_output.charAt(i);
-          //   System.out.println("char_arr[" +i +"]: " + char_arr[i]);
-          // }
-          // return char_arr[1];
+        }catch(Exception e){
+            System.out.println(e);
+        }
+        getContext().getLog().info("Detection engine's stress level: "+ stressLevel); 
+        controller.tell(new StressManagementController.DetectionEngineToController("healthInfo", stressLevel));       
+        return this;
+    }
 
-          // while ((line = bfr.readLine()) != null){
-          //     System.out.println("KNN Output: " + line);
-          // }
-      }catch(Exception e){
-          System.out.println(e);
-      }
-      return 0;
+    private Behavior<Command> onReporterRefs(ReporterRefs msg) {
+      this.reporterRefs = msg.reporterRefs;
+      return this;
     }
 
     /************************************* 
