@@ -86,6 +86,8 @@ public class StressWebHandler extends AbstractBehavior<StressWebHandler.Command>
 
     private int replyId;
     private CombinedEngineData data;
+    private String date;
+    private String time;
 
     private HashMap<String, Treatment> treatmentData = new HashMap<String, Treatment>();
 
@@ -148,26 +150,30 @@ public class StressWebHandler extends AbstractBehavior<StressWebHandler.Command>
                             "Try giving a call to someone for support",
                             "img/contact.jpg"));
 
-        RecommendationData tmpRecommendation = new RecommendationData("", "", "", ""); 
-        DetectionData tmpDetection = new DetectionData(new BloodPressure(Optional.of(""), 0, 0),
+        RecommendationData tmpRecommendation = new RecommendationData("meeting", "work", "bad", ""); 
+        DetectionData tmpDetection = new DetectionData(new BloodPressure(Optional.of(""), 120, 80),
                                                         new HeartRate(Optional.of(""), 0),
                                                         new SleepHours(Optional.of(""), 0),
                                                         new UserLocation(Optional.of(""), ""),
                                                         new BusynessReading(Optional.of(0)),
-                                                        "",
                                                         0,
                                                         0);
         this.data = new CombinedEngineData(tmpRecommendation, tmpDetection);
+        this.time = "8:00";
+        this.date = "05/12/22";
     }
 
     /** TestData is just an example class for holding JSON data. */
     public final static class Data {
         public final int id;
         public final int heartRate;
+        public final int systolicBP;
+        public final int diastolicBP;
         public final int sleepHours;
         public final int previousStressLevel;
         public final int currentStressLevel;
         public final int busynessLevel;
+        public final String date;
         public final String time;
         public final String calendar;
         public final String location;
@@ -177,8 +183,11 @@ public class StressWebHandler extends AbstractBehavior<StressWebHandler.Command>
         @JsonCreator
         public Data(int id,
                     int heartRate,
+                    int systolicBP,
+                    int diastolicBP,
                     int sleepHours,
                     int busynessLevel,
+                    String date,
                     String time,
                     int previousStressLevel,
                     int currentStressLevel,
@@ -188,8 +197,11 @@ public class StressWebHandler extends AbstractBehavior<StressWebHandler.Command>
                     String treatmentExists) {
             this.id = id;
             this.heartRate = heartRate;
+            this.systolicBP = systolicBP;
+            this.diastolicBP = diastolicBP;
             this.sleepHours = sleepHours;
             this.busynessLevel = busynessLevel;
+            this.date = date;
             this.time = time;
             this.previousStressLevel = previousStressLevel;
             this.currentStressLevel = currentStressLevel;
@@ -215,8 +227,11 @@ public class StressWebHandler extends AbstractBehavior<StressWebHandler.Command>
         Treatment exampleTreatment = new Treatment("title", "summary", "url");
         Data exampleData = new Data(0,
                                     0,
+                                   0,
                                     0,
                                     0,
+                                    0,
+                                    "",
                                     "",
                                     0,
                                     0,
@@ -240,9 +255,12 @@ public class StressWebHandler extends AbstractBehavior<StressWebHandler.Command>
         Data information = new Data(
             this.replyId++,
             detectionData.hr.heartrate,
+            detectionData.bp.systolic,
+            detectionData.bp.diastolic,
             detectionData.sleep.sleep,
             detectionData.busy.level.get(),
-            detectionData.time,
+            this.date,
+            this.time,
             detectionData.previousStressLevel,
             detectionData.currentStressLevel,
             recommendationData.event,
@@ -265,9 +283,12 @@ public class StressWebHandler extends AbstractBehavior<StressWebHandler.Command>
         Data information = new Data(
             this.replyId++,
             detectionData.hr.heartrate,
+            detectionData.bp.systolic,
+            detectionData.bp.diastolic,
             detectionData.sleep.sleep,
             detectionData.busy.level.get(),
-            detectionData.time,
+            this.date,
+            this.time,
             detectionData.previousStressLevel,
             detectionData.currentStressLevel,
             recommendationData.event,

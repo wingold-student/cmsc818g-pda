@@ -221,7 +221,6 @@ public class StressDetectionEngine extends AbstractBehavior<StressDetectionEngin
                                                         metrics.sleepReading.orElse(new SleepHours(Optional.of(""), 0)),
                                                         metrics.locReading.orElse(new UserLocation(Optional.of(""), "")),
                                                         metrics.busyReading.orElse(new BusynessReading(Optional.of(0))),
-                                                        metrics.timeReading.orElse(""),
                                                         previousStressLevel,
                                                         currentStressLevel);
 
@@ -283,7 +282,6 @@ public class StressDetectionEngine extends AbstractBehavior<StressDetectionEngin
       public final SleepHours sleep;
       public final UserLocation loc;
       public final BusynessReading busy;
-      public final String time;
       public final int previousStressLevel;
       public final int currentStressLevel;
 
@@ -293,7 +291,6 @@ public class StressDetectionEngine extends AbstractBehavior<StressDetectionEngin
               SleepHours sleep,
               UserLocation loc,
               BusynessReading busy,
-              String time,
               int previousStressLevel,
               int currentStressLevel)
       {
@@ -302,7 +299,6 @@ public class StressDetectionEngine extends AbstractBehavior<StressDetectionEngin
         this.sleep = sleep;
         this.loc = loc;
         this.busy = busy;
-        this.time = time;
         this.previousStressLevel = previousStressLevel;
         this.currentStressLevel = currentStressLevel;
       }
