@@ -240,8 +240,9 @@ public class StressRecommendationEngine extends AbstractBehavior<StressRecommend
 
           } else {
 
+            RecommendationData noRecommendation = new RecommendationData("", locReadingResults, sleepCondition, "");
+          replyToSMC.tell(new StressManagementController.RecommendEngineToController("recommendation", noRecommendation)); 
           // Tell the Context Engine we had a problem
-          replyToSMC.tell(new StressManagementController.RecommendEngineToController("recommendation error", null)); 
         }
       
         statement.close();
