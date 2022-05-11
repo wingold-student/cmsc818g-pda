@@ -1,7 +1,13 @@
 package com.cmsc818g.StressUIManager;
 
 import java.util.HashMap;
+import java.util.Optional;
 
+import com.cmsc818g.StressContextEngine.Reporters.BloodPressureReporter.BloodPressure;
+import com.cmsc818g.StressContextEngine.Reporters.BusynessReporter.BusynessReading;
+import com.cmsc818g.StressContextEngine.Reporters.HeartRateReporter.HeartRate;
+import com.cmsc818g.StressContextEngine.Reporters.LocationReporter.UserLocation;
+import com.cmsc818g.StressContextEngine.Reporters.SleepReporter.SleepHours;
 import com.cmsc818g.StressDetectionEngine.StressDetectionEngine.DetectionData;
 import com.cmsc818g.StressRecommendationEngine.StressRecommendationEngine.RecommendationData;
 import com.fasterxml.jackson.annotation.JsonCreator;
@@ -143,7 +149,14 @@ public class StressWebHandler extends AbstractBehavior<StressWebHandler.Command>
                             "img/contact.jpg"));
 
         RecommendationData tmpRecommendation = new RecommendationData("", "", "", ""); 
-        DetectionData tmpDetection = new DetectionData(null, null, null, null, null, 0, 0);
+        DetectionData tmpDetection = new DetectionData(new BloodPressure(Optional.of(""), 0, 0),
+                                                        new HeartRate(Optional.of(""), 0),
+                                                        new SleepHours(Optional.of(""), 0),
+                                                        new UserLocation(Optional.of(""), ""),
+                                                        new BusynessReading(Optional.of(0)),
+                                                        "",
+                                                        0,
+                                                        0);
         this.data = new CombinedEngineData(tmpRecommendation, tmpDetection);
     }
 
@@ -154,6 +167,8 @@ public class StressWebHandler extends AbstractBehavior<StressWebHandler.Command>
         public final int sleepHours;
         public final int previousStressLevel;
         public final int currentStressLevel;
+        public final int busynessLevel;
+        public final String time;
         public final String calendar;
         public final String location;
         public final Treatment treatment;
@@ -163,6 +178,8 @@ public class StressWebHandler extends AbstractBehavior<StressWebHandler.Command>
         public Data(int id,
                     int heartRate,
                     int sleepHours,
+                    int busynessLevel,
+                    String time,
                     int previousStressLevel,
                     int currentStressLevel,
                     String calendar,
@@ -172,6 +189,8 @@ public class StressWebHandler extends AbstractBehavior<StressWebHandler.Command>
             this.id = id;
             this.heartRate = heartRate;
             this.sleepHours = sleepHours;
+            this.busynessLevel = busynessLevel;
+            this.time = time;
             this.previousStressLevel = previousStressLevel;
             this.currentStressLevel = currentStressLevel;
             this.calendar = calendar;
@@ -198,6 +217,8 @@ public class StressWebHandler extends AbstractBehavior<StressWebHandler.Command>
                                     0,
                                     0,
                                     0,
+                                    "",
+                                    0,
                                     0,
                                     "meeting",
                                     "work",
@@ -220,6 +241,8 @@ public class StressWebHandler extends AbstractBehavior<StressWebHandler.Command>
             this.replyId++,
             detectionData.hr.heartrate,
             detectionData.sleep.sleep,
+            detectionData.busy.level.get(),
+            detectionData.time,
             detectionData.previousStressLevel,
             detectionData.currentStressLevel,
             recommendationData.event,
@@ -243,6 +266,8 @@ public class StressWebHandler extends AbstractBehavior<StressWebHandler.Command>
             this.replyId++,
             detectionData.hr.heartrate,
             detectionData.sleep.sleep,
+            detectionData.busy.level.get(),
+            detectionData.time,
             detectionData.previousStressLevel,
             detectionData.currentStressLevel,
             recommendationData.event,
