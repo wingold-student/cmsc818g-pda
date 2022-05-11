@@ -42,6 +42,10 @@ public class RecommendationMetricsAggregator extends AbstractBehavior<Recommenda
         }
     }
 
+    public static enum GracefulShutdown implements Command {
+        INSTANCE;
+    }
+
     /************************************* 
      * MESSAGES IT SENDS
      *************************************/
@@ -108,6 +112,7 @@ public class RecommendationMetricsAggregator extends AbstractBehavior<Recommenda
         return newReceiveBuilder()
             .onMessage(AdaptedSleepResponse.class, this::onAdaptedSleepResponse)
             .onMessage(AdaptedLocationResponse.class, this::onAdaptedLocationResponse)
+            .onMessage(GracefulShutdown.class, this::onGracefulShutdown)
             .onSignal(PostStop.class, signal -> onPostStop())
             .build();
     }
@@ -124,6 +129,11 @@ public class RecommendationMetricsAggregator extends AbstractBehavior<Recommenda
         locCount++;
         sendDataIfComplete();
         return this;
+    }
+
+    public Behavior<Command> onGracefulShutdown(GracefulShutdown msg) {
+        Cleanup();
+        return Behaviors.stopped();
     }
 
     public RecommendationMetricsAggregator onPostStop() {
@@ -145,7 +155,7 @@ public class RecommendationMetricsAggregator extends AbstractBehavior<Recommenda
             locCount = 0;
 
             replyTo.tell(new AggregatedRecommendationMetrics(sleepReading, locReading));
-            getContext().stop(getContext().getSelf());
+            getContext().getSelf().tell(GracefulShutdown.INSTANCE);
         }
     }
 
