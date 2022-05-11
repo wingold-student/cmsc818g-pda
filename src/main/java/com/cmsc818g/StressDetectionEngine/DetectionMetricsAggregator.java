@@ -105,6 +105,7 @@ public class DetectionMetricsAggregator extends AbstractBehavior<DetectionMetric
         public final Optional<SleepHours> sleepReading;
         public final Optional<UserLocation> locReading;
         public final Optional<BusynessReading> busyReading;
+        public final Optional<String> timeReading;
         public final Optional<String> medicalReading;
 
         public AggregatedStressMetrics(
@@ -113,6 +114,7 @@ public class DetectionMetricsAggregator extends AbstractBehavior<DetectionMetric
                 Optional<SleepHours> sleepReading,
                 Optional<UserLocation> locReading,
                 Optional<BusynessReading> busyReading,
+                Optional<String> timeReading,
                 Optional<String> medicalReading
         ) {
             this.bpReading = bpReading;
@@ -120,6 +122,7 @@ public class DetectionMetricsAggregator extends AbstractBehavior<DetectionMetric
             this.sleepReading = sleepReading;
             this.locReading = locReading;
             this.busyReading = busyReading;
+            this.timeReading = timeReading;
             this.medicalReading = medicalReading;
         }
     }
@@ -151,6 +154,7 @@ public class DetectionMetricsAggregator extends AbstractBehavior<DetectionMetric
     private Optional<UserLocation> locReading;
     private Optional<BusynessReading> busyReading;
     private Optional<String> medicalReading;
+    private Optional<String> timeReading;
 
     public DetectionMetricsAggregator(ActorContext<Command> context, ActorRef<AggregatedStressMetrics> replyTo, DetectionMetricsConfig config) {
         super(context);
@@ -170,6 +174,7 @@ public class DetectionMetricsAggregator extends AbstractBehavior<DetectionMetric
         locReading = Optional.empty();
         busyReading = Optional.empty();
         medicalReading = Optional.empty();
+        timeReading = Optional.of("8:00"); // TODO: Update and ask Scheduler for it
 
         config.bpReporter.tell(new BloodPressureReporter.Subscribe(this.bpAdapter));       
         config.hrReporter.tell(new HeartRateReporter.Subscribe(this.hrAdapter));
@@ -275,7 +280,7 @@ public class DetectionMetricsAggregator extends AbstractBehavior<DetectionMetric
             locCount = 0;
             medicalCount = 0;
 
-            replyTo.tell(new AggregatedStressMetrics(bpReading, hrReading, sleepReading, locReading, busyReading, medicalReading));
+            replyTo.tell(new AggregatedStressMetrics(bpReading, hrReading, sleepReading, locReading, busyReading, timeReading, medicalReading));
             getContext().getSelf().tell(GracefulShutdown.INSTANCE);
         }
     }
