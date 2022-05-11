@@ -42,6 +42,13 @@ public class StressRecommendationEngine extends AbstractBehavior<StressRecommend
     /************************************* 
      * MESSAGES IT RECEIVES 
      *************************************/
+
+    int sleepReadingResults = 0;
+    String locReadingResults = "";
+    String sleepCondition;
+    String locationCondition;
+
+    
     public interface Command {}
 
     public static class ScheduleReporterToRecommendation implements Command {
@@ -159,9 +166,39 @@ public class StressRecommendationEngine extends AbstractBehavior<StressRecommend
       sleepReading = metrics.sleepReading;
       locReading = metrics.locReading;
 
-      // TODO: Somewhat temporary. Could instead now call the actual recommendation algorithm
       haveMetrics = true;
-      return this;
+
+      // TODO: Somewhat temporary. Could instead now call the actual recommendation algorithm
+      switch((0 <= sleepReadingResults && sleepReadingResults <= 5 ) ? 0 : 1){
+        case 0:
+          sleepCondition = "bad";
+          break;
+        case 1:
+          sleepCondition = "good";
+          break;
+      }
+
+      switch(locReadingResults){
+        case "class room":
+          locationCondition = "public";
+          break;
+        case "office":
+          locationCondition = "personal";
+          break;
+        case "home":
+          locationCondition = "personal";
+          break;
+        case "conference room":
+          locationCondition = "public";
+          break;
+      }
+      
+      // SELECT treatment
+      // FROM treatmentDB
+      // WHERE stress_level = stressLevelCondition
+      // AND sleep_condition = sleepCondition 
+      // AND location_condition = locationCondition;
+      // return this;
     }
 
     private Behavior<Command> onReporterRefs(ReporterRefs msg) {
