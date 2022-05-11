@@ -8,6 +8,7 @@ import java.util.Optional;
 import com.cmsc818g.Utilities.SQLiteHandler;
 
 import akka.actor.typed.javadsl.TimerScheduler;
+import akka.actor.typed.pubsub.Topic;
 import akka.actor.ActorPath;
 import akka.actor.typed.ActorRef;
 import akka.actor.typed.Behavior;
@@ -39,6 +40,22 @@ public class BusynessReporter extends Reporter {
 
     public static final class GracefulShutdown implements Command {
         public GracefulShutdown() {}
+    }
+
+    public static final class Subscribe implements Command {
+        final ActorRef<BusynessLevelResponse> subscriber;
+
+        public Subscribe(ActorRef<BusynessLevelResponse> subscriber) {
+            this.subscriber = subscriber;
+        }
+    }
+
+    public static final class Unsubscribe implements Command {
+        final ActorRef<BusynessLevelResponse> subscriber;
+
+        public Unsubscribe(ActorRef<BusynessLevelResponse> subscriber) {
+            this.subscriber = subscriber;
+        }
     }
 
     public static final class AdaptedSchedulerUpdateEvent implements Command {
@@ -128,6 +145,7 @@ public class BusynessReporter extends Reporter {
     private ActorRef<SchedulerReporter.Response> schedulerAdapter;
     private ActorRef<SchedulerReporter.UpdateEventResponse> updateEventAdapter;
     private Optional<BusynessReading> lastReading;
+    private final ActorRef<Topic.Command<BusynessLevelResponse>> busyTopic;
 
     public BusynessReporter(ActorContext<Reporter.Command> context,
                             TimerScheduler<Reporter.Command> timers,
@@ -145,6 +163,8 @@ public class BusynessReporter extends Reporter {
         this.updateEventAdapter = context.messageAdapter(SchedulerReporter.UpdateEventResponse.class, WrappedUpdateEventResponse::new);
 
         this.schedulerReporter.tell(new SchedulerReporter.SubscribeForUpdates(this.updateEventAdapter));
+
+        this.busyTopic = context.spawn(Topic.create(BusynessLevelResponse.class, "busy-topic"), "busy-topic");
     }
 
     /************************************* 
@@ -162,6 +182,8 @@ public class BusynessReporter extends Reporter {
             .onMessage(GracefulShutdown.class, this::onGracefulShutdown)
             .onMessage(StartReading.class, this::onStartReading)
             .onMessage(StopReading.class, this::onStopReading)
+            .onMessage(Subscribe.class, this::onSubscribe)
+            .onMessage(Unsubscribe.class, this::onUnsubscribe)
             .onMessage(TellSelfToRead.class, this::onTellSelfToRead)
             .onSignal(PostStop.class, signal -> onPostStop())
             .build();
@@ -188,7 +210,11 @@ public class BusynessReporter extends Reporter {
                 BusynessReading reading = new BusynessReading(busyLevel);
                 this.lastReading = Optional.of(reading);
                 msg.replyTo.tell(new SQLiteHandler.StatusOfRead(true, "Succesfully read row " + msg.rowNumber, myPath));
-                this.currentRow++;
+
+                this.busyTopic.tell(Topic.publish(
+                    new BusynessLevelResponse(Optional.of(reading))
+                ));
+
             } else {
                 this.lastReading = Optional.empty();
             }
@@ -242,6 +268,18 @@ public class BusynessReporter extends Reporter {
     }
 
     private BusynessReporter onGracefulShutdown(GracefulShutdown msg) {
+        return this;
+    }
+
+    private Behavior<Reporter.Command> onSubscribe(Subscribe msg) {
+        getContext().getLog().info("New subscriber added");
+        this.busyTopic.tell(Topic.subscribe(msg.subscriber));
+        return this;
+    }
+
+    private Behavior<Reporter.Command> onUnsubscribe(Unsubscribe msg) {
+        getContext().getLog().info("Actor has unsubscribed");
+        this.busyTopic.tell(Topic.unsubscribe(msg.subscriber));
         return this;
     }
 
