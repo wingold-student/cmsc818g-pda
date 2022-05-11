@@ -171,7 +171,7 @@ public class StressRecommendationEngine extends AbstractBehavior<StressRecommend
             reporterRefs.get("Location") 
           );
           
-          if(stressLevelReceived != oldStressLevelReceived){
+          if(stressLevelReceived > oldStressLevelReceived){
           // TODO: Note this starts it immediately
             getContext().spawnAnonymous(RecommendationMetricsAggregator.create(config, this.aggregatorAdapter));
           } else {
