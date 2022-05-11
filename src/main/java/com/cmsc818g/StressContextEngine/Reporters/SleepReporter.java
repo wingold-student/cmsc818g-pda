@@ -253,7 +253,7 @@ public class SleepReporter extends Reporter {
      *************************************/
     public class SleepHours {
         final Optional<String> readingTime;
-        final int sleep;
+        final public int sleep;
 
         public SleepHours(Optional<String> readingTime, int sleep) {
             this.readingTime = readingTime;

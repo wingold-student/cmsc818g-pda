@@ -258,8 +258,8 @@ public class LocationReporter extends Reporter {
      * HELPER CLASSES
      *************************************/
     public class UserLocation {
-        final Optional<String> readingTime;
-        final String location;
+        final public Optional<String> readingTime;
+        final public String location;
 
         public UserLocation(Optional<String> readingTime, String location) {
             this.readingTime = readingTime;
