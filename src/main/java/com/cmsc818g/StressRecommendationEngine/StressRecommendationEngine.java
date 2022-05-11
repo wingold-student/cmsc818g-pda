@@ -171,7 +171,7 @@ public class StressRecommendationEngine extends AbstractBehavior<StressRecommend
           
         
           // TODO: Note this starts it immediately
-          this.aggregator = getContext().spawn(RecommendationMetricsAggregator.create(config, this.aggregatorAdapter), "RecommednationAggregator");
+          getContext().spawnAnonymous(RecommendationMetricsAggregator.create(config, this.aggregatorAdapter));
 
           // TODO: Would want to move this to when results are actually ready
           //response.replyTo.tell(new StressManagementController.RecommendEngineToController("recommendation")); 
@@ -215,7 +215,8 @@ public class StressRecommendationEngine extends AbstractBehavior<StressRecommend
       }
       
        try{
-        String sql = String.format("SELECT treatment FROM %s WHERE `stress-level` = %d AND `sleep-condition` = %s AND `location-condition` = %s", cfg.table, stressLevelReceived, sleepCondition, locationCondition);
+        //String sql = String.format("SELECT treatment FROM %s WHERE `stress-level` = %d AND `sleep-condition` = %s AND `location-condition` = %s", cfg.table, stressLevelReceived, sleepCondition, locationCondition);
+        String sql2 = "SELECT treatment FROM treatment WHERE `stress-level` = ? AND `sleep-condition` = ? AND `location-condition` = ?";
 
         ActorPath myPath = getContext().getSelf().path();
         
@@ -223,7 +224,10 @@ public class StressRecommendationEngine extends AbstractBehavior<StressRecommend
         Connection conn = SQLiteHandler.connectToDB(cfg.databaseURI, null, myPath);
 
         PreparedStatement statement;
-        statement = conn.prepareStatement(sql);
+        statement = conn.prepareStatement(sql2);
+        statement.setInt(1, stressLevelReceived);
+        statement.setString(2, sleepCondition);
+        statement.setString(3, locationCondition);
 
         ResultSet results = SQLiteHandler.queryDB(cfg.databaseURI, statement, null, myPath);
 
