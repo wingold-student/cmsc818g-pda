@@ -61,7 +61,8 @@ public class StressRecommendationEngine extends AbstractBehavior<StressRecommend
     String locReadingResults = "";
     String sleepCondition;
     String locationCondition;
-    int stressLevelReceived;
+    int stressLevelReceived = 0;
+    int oldStressLevelReceived = 0;
     ActorRef<StressManagementController.Command> replyToSMC;
 
 
@@ -159,7 +160,8 @@ public class StressRecommendationEngine extends AbstractBehavior<StressRecommend
   
     private Behavior<Command> onEngineResponse(recommendEngineGreet response) { //when receive message
       if(response.message == "recommend"){
-          //recommend treatment     
+          //recommend treatment
+          oldStressLevelReceived = stressLevelReceived;     
           stressLevelReceived = response.currentStressLevel;
           replyToSMC = response.replyTo;
 
@@ -169,9 +171,10 @@ public class StressRecommendationEngine extends AbstractBehavior<StressRecommend
             reporterRefs.get("Location") 
           );
           
-        
+          if(stressLevelReceived != oldStressLevelReceived){
           // TODO: Note this starts it immediately
-          getContext().spawnAnonymous(RecommendationMetricsAggregator.create(config, this.aggregatorAdapter));
+            getContext().spawnAnonymous(RecommendationMetricsAggregator.create(config, this.aggregatorAdapter));
+          }
 
           // TODO: Would want to move this to when results are actually ready
           //response.replyTo.tell(new StressManagementController.RecommendEngineToController("recommendation")); 
