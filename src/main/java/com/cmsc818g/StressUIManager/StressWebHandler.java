@@ -357,10 +357,8 @@ public class StressWebHandler extends AbstractBehavior<StressWebHandler.Command>
         CalendarEvent event = response.event.orElse(new CalendarEvent("", DateTime.now(), Duration.ofMinutes(30L), "personal"));
         getContext().getLog().debug("Got current event in UI");
 
-        DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("MM/dd/YYYY");
-
-        this.date = dateFormatter.format((TemporalAccessor) event.datetime);
-        this.time = DateTimeFormatter.ofPattern("HH:mm").format((TemporalAccessor)event.datetime);
+        this.date = String.format("%02d/%02d/%02d", event.datetime.month(), event.datetime.day(), event.datetime.year());
+        this.time = String.format("%02d:%02d", event.datetime.hour(), event.datetime.minute());
         this.eventName = event.eventName;
 
         return this;

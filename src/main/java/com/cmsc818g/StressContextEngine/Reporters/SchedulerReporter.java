@@ -369,7 +369,8 @@ public class SchedulerReporter extends Reporter {
             Optional<String> eventName = Optional.ofNullable(results.getString("event"));
             String time = results.getString("time");
             String date = results.getString("date");
-            String dateTimeStr = String.format("%sT%s", date, time);
+            String dateTimeStr = String.format("%sT%s:00", date, time);
+            getContext().getLog().debug(dateTimeStr);
             Optional<DateTime> eventTime = DateTime.fromIsoDateTimeString(dateTimeStr);
 
             String calendarType = results.getString("tag");
