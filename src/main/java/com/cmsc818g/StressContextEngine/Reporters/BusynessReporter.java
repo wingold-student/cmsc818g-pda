@@ -220,11 +220,11 @@ public class BusynessReporter extends Reporter {
                 }
 
             } else {
-                this.lastReading = Optional.empty();
+                // this.lastReading = Optional.empty();
             }
 
         } else {
-            this.lastReading = Optional.empty();
+            // this.lastReading = Optional.empty();
             msg.replyTo.tell(new SQLiteHandler.StatusOfRead(false, "No results from row " + msg.rowNumber, myPath));
         }
 
