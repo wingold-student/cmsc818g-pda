@@ -183,7 +183,7 @@ public class StressDetectionEngine extends AbstractBehavior<StressDetectionEngin
 
         try{
           String path = "src/main/java/com/cmsc818g/LOGISTIC_REGRESSION.py";
-          ProcessBuilder pb = new ProcessBuilder("python3", path, 
+          ProcessBuilder pb = new ProcessBuilder("python3", path,
               String.valueOf(sleepHours),
               String.valueOf(busyness),
               String.valueOf(systolicBP),

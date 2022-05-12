@@ -1,6 +1,6 @@
 HeartRate:
   dbURI: jdbc:sqlite:src/main/resources/EntityDB.db
-  table: SmartWatch
+  table: BloodPressureCuff
   readRate: 2
 Sleep:
   dbURI: jdbc:sqlite:src/main/resources/EntityDB.db
