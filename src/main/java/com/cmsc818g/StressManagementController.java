@@ -42,7 +42,7 @@ public class StressManagementController extends AbstractBehavior<StressManagemen
     public  ActorRef<StressRecommendationEngine.Command> child_RecommendEngine;
     public  ActorRef<StressUIManager.Command> child_UIManager;
     private TimerScheduler<Command> detect_timer;
-    private final int readRate = 5;
+    private final int readRate = 2;
     private DetectionData latestDetectionData = null;
 
     protected static enum TellToDetect implements Command {
