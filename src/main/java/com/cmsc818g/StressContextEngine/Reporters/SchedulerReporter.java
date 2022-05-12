@@ -397,6 +397,7 @@ public class SchedulerReporter extends Reporter {
             
         } else {
             // this.curEvent = Optional.empty();
+            this.currentRow = 1;
             msg.replyTo.tell(new SQLiteHandler.StatusOfRead(false, "No results from row " + msg.rowNumber, myPath));
         }
 

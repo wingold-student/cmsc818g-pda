@@ -199,6 +199,7 @@ public class BloodPressureReporter extends Reporter {
             
         } else {
             // this.lastReading = Optional.empty();
+            this.currentRow = 1;
             // Tell the Context Engine we had a problem
             msg.replyTo.tell(new SQLiteHandler.StatusOfRead(false, "No results from row " + msg.rowNumber, myPath));
         }

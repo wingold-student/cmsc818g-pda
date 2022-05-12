@@ -215,6 +215,7 @@ public class HeartRateReporter extends Reporter {
 
             //this.lastReading = Optional.empty();
             // Tell the Context Engine we had a problem
+            this.currentRow = 1;
             msg.replyTo.tell(new SQLiteHandler.StatusOfRead(false, "No results from row " + msg.rowNumber, myPath));
         }
 
