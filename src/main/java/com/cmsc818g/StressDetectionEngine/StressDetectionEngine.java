@@ -178,7 +178,6 @@ public class StressDetectionEngine extends AbstractBehavior<StressDetectionEngin
           getContext().getLog().info("Busyness reading is empty");
         }
 
-
         getContext().getLog().info(" ML measure started ");
 
         try{

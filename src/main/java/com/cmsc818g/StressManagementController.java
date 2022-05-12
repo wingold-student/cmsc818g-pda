@@ -193,6 +193,8 @@ public class StressManagementController extends AbstractBehavior<StressManagemen
         if(response.message != "contextEngine")
           return null;
         else {
+          child_UIManager.tell(new StressUIManager.ReceiveSchedulerRef(response.reporterRefs.get("Scheduler")));
+
           // Tell both engines about the reporters
           child_DetectionEngine.tell(new StressDetectionEngine.ReporterRefs(response.reporterRefs));
           child_RecommendEngine.tell(new StressRecommendationEngine.ReporterRefs(response.reporterRefs));
@@ -200,6 +202,8 @@ public class StressManagementController extends AbstractBehavior<StressManagemen
          // Start periodic detection
           getContext().getLog().info("Start periodic detection");
 
+          // Initially tell self in 1 second, then start 2 second intervals
+          // detect_timer.startTimerWithFixedDelay("detection-timer", TellToDetect.INSTANCE, Duration.ofSeconds(1), Duration.ofSeconds(readRate));
           detect_timer.startTimerAtFixedRate("detection-timer",
                                               TellToDetect.INSTANCE,
                                       Duration.ofSeconds(readRate));

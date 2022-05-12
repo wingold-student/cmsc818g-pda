@@ -3,6 +3,7 @@ package com.cmsc818g.StressContextEngine.Reporters;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Duration;
+import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.HashMap;
 import java.util.List;
@@ -263,6 +264,7 @@ public class SchedulerReporter extends Reporter {
     private HashMap<String, CalendarData> calendars;
     private final String calendarDemoName;
     private final ActorRef<Topic.Command<CurrentEventResponse>> curEventTopic;
+    private int subscriberCount = 0;
 
     /**
      * Constructor for this actor
@@ -380,9 +382,12 @@ public class SchedulerReporter extends Reporter {
                 CalendarEvent event = new CalendarEvent(eventName.get(), eventTime.get(), tmpDuration, calendarType); 
 
                 this.curEvent = Optional.of(event);
-                this.curEventTopic.tell(Topic.publish(
-                    new CurrentEventResponse(Optional.of(event))
-                ));
+                if (subscriberCount > 0) {
+                    getContext().getLog().debug("Publishing current event");
+                    this.curEventTopic.tell(Topic.publish(
+                        new CurrentEventResponse(Optional.of(event))
+                    ));
+                }
 
                 msg.replyTo.tell(new SQLiteHandler.StatusOfRead(true, "Succesfully read row " + msg.rowNumber, myPath));
             } else {
@@ -456,12 +461,14 @@ public class SchedulerReporter extends Reporter {
     private Behavior<Reporter.Command> onSubscribeForCurrentEvent(SubscribeForCurrentEvent msg) {
         getContext().getLog().info("New current event subscriber added");
         this.curEventTopic.tell(Topic.subscribe(msg.subscriber));
+        subscriberCount++;
         return this;
     }
 
     private Behavior<Reporter.Command> onUnsubscribeFromCurrentEvent(UnsubscribeFromCurrentEvent msg) {
         getContext().getLog().info("Actor has unsubscribed from current event");
         this.curEventTopic.tell(Topic.unsubscribe(msg.subscriber));
+        subscriberCount--;
         return this;
     }
     

@@ -1,5 +1,6 @@
 package com.cmsc818g.StressUIManager;
 
+import com.cmsc818g.StressContextEngine.Reporters.Reporter;
 import com.cmsc818g.StressUIManager.StressWebHandler.CombinedEngineData;
 import com.cmsc818g.StressUIManager.StressWebHandler.FrontEndData;
 import com.cmsc818g.StressUIManager.StressWebHandler.ReceiveCombinedData;
@@ -20,6 +21,14 @@ public class StressUIManager extends AbstractBehavior<StressUIManager.Command> {
 
         public ReceiveCombinedData(CombinedEngineData combinedData) {
             this.combinedData = combinedData;
+        }
+    }
+
+    public final static class ReceiveSchedulerRef implements Command {
+        public final ActorRef<Reporter.Command> scheduler;
+
+        public ReceiveSchedulerRef(ActorRef<Reporter.Command> scheduler) {
+            this.scheduler = scheduler;
         }
     }
 
@@ -47,12 +56,18 @@ public class StressUIManager extends AbstractBehavior<StressUIManager.Command> {
     public Receive<Command> createReceive() {
         return newReceiveBuilder()
             .onMessage(ReceiveCombinedData.class, this::onReceiveCombinedData)
+            .onMessage(ReceiveSchedulerRef.class, this::onReceiveSchedulerRef)
             .onSignal(PostStop.class, signal -> onPostStop())
             .build();
     }
 
     private Behavior<Command> onReceiveCombinedData(ReceiveCombinedData msg) {
         webHandlerActor.tell(new StressWebHandler.ReceiveCombinedData(msg.combinedData));
+        return this;
+    }
+
+    private Behavior<Command> onReceiveSchedulerRef(ReceiveSchedulerRef msg) {
+        webHandlerActor.tell(new StressWebHandler.ReceiveSchedulerRef(msg.scheduler));
         return this;
     }
 

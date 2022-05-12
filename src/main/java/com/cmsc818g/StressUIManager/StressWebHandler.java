@@ -1,12 +1,18 @@
 package com.cmsc818g.StressUIManager;
 
+import java.time.Duration;
+import java.time.format.DateTimeFormatter;
+import java.time.temporal.TemporalAccessor;
 import java.util.HashMap;
 import java.util.Optional;
 
+import com.cmsc818g.StressContextEngine.Reporters.Reporter;
+import com.cmsc818g.StressContextEngine.Reporters.SchedulerReporter;
 import com.cmsc818g.StressContextEngine.Reporters.BloodPressureReporter.BloodPressure;
 import com.cmsc818g.StressContextEngine.Reporters.BusynessReporter.BusynessReading;
 import com.cmsc818g.StressContextEngine.Reporters.HeartRateReporter.HeartRate;
 import com.cmsc818g.StressContextEngine.Reporters.LocationReporter.UserLocation;
+import com.cmsc818g.StressContextEngine.Reporters.SchedulerReporter.CalendarEvent;
 import com.cmsc818g.StressContextEngine.Reporters.SleepReporter.SleepHours;
 import com.cmsc818g.StressDetectionEngine.StressDetectionEngine.DetectionData;
 import com.cmsc818g.StressRecommendationEngine.StressRecommendationEngine.RecommendationData;
@@ -21,6 +27,7 @@ import akka.actor.typed.javadsl.AbstractBehavior;
 import akka.actor.typed.javadsl.ActorContext;
 import akka.actor.typed.javadsl.Behaviors;
 import akka.actor.typed.javadsl.Receive;
+import akka.http.javadsl.model.DateTime;
 
 /**
  * StressWebHandler will be the middle-man for asking around for desired data.
@@ -63,6 +70,22 @@ public class StressWebHandler extends AbstractBehavior<StressWebHandler.Command>
         }
     }
 
+    public final static class ReceiveSchedulerRef implements Command {
+        public final ActorRef<Reporter.Command> scheduler;
+
+        public ReceiveSchedulerRef(ActorRef<Reporter.Command> scheduler) {
+            this.scheduler = scheduler;
+        }
+    }
+
+    public final static class AdaptedCurrentEventResponse implements Command {
+        public final SchedulerReporter.CurrentEventResponse response;
+
+        public AdaptedCurrentEventResponse(SchedulerReporter.CurrentEventResponse response) {
+            this.response = response;
+        }
+    }
+
     /** Hands back the data. Note it will be part of the 'testData' field
      * in the json.
      */
@@ -88,6 +111,9 @@ public class StressWebHandler extends AbstractBehavior<StressWebHandler.Command>
     private CombinedEngineData data;
     private String date;
     private String time;
+    private ActorRef<Reporter.Command> schedulerReporter;
+    private final ActorRef<SchedulerReporter.CurrentEventResponse> curEventAdapter;
+    private String eventName;
 
     private HashMap<String, Treatment> treatmentData = new HashMap<String, Treatment>();
 
@@ -171,6 +197,8 @@ public class StressWebHandler extends AbstractBehavior<StressWebHandler.Command>
         this.data = new CombinedEngineData(tmpRecommendation, tmpDetection);
         this.time = "8:00";
         this.date = "05/12/22";
+
+        curEventAdapter = context.messageAdapter(SchedulerReporter.CurrentEventResponse.class, AdaptedCurrentEventResponse::new);
     }
 
     /** TestData is just an example class for holding JSON data. */
@@ -229,6 +257,8 @@ public class StressWebHandler extends AbstractBehavior<StressWebHandler.Command>
             .onMessage(GetJSONData.class, this::onGetJSONData)
             .onMessage(GetJSONDataNullTreatment.class, this::onGetJSONDataNullTreatment)
             .onMessage(ReceiveCombinedData.class, this::onReceiveCombinedData)
+            .onMessage(ReceiveSchedulerRef.class, this::onReceiveSchedulerRef)
+            .onMessage(AdaptedCurrentEventResponse.class, this::onAdaptedCurrentEventResponse)
             .onSignal(PostStop.class, signal -> onPostStop())
             .build();
     }
@@ -273,7 +303,7 @@ public class StressWebHandler extends AbstractBehavior<StressWebHandler.Command>
             this.time,
             detectionData.previousStressLevel,
             detectionData.currentStressLevel,
-            recommendationData.event,
+            this.eventName,
             recommendationData.location,
             treatment,
             treatmentExists);
@@ -301,7 +331,7 @@ public class StressWebHandler extends AbstractBehavior<StressWebHandler.Command>
             this.time,
             detectionData.previousStressLevel,
             detectionData.currentStressLevel,
-            recommendationData.event,
+            this.eventName,
             recommendationData.location,
             treatment,
             treatmentExists);
@@ -310,8 +340,29 @@ public class StressWebHandler extends AbstractBehavior<StressWebHandler.Command>
         return this;
     }
 
+    private Behavior<Command> onReceiveSchedulerRef(ReceiveSchedulerRef msg) {
+        getContext().getLog().debug("Telling scheduler I am subscribing");
+        this.schedulerReporter = msg.scheduler;
+        this.schedulerReporter.tell(new SchedulerReporter.SubscribeForCurrentEvent(this.curEventAdapter));
+        return this;
+    }
+
     private Behavior<Command> onReceiveCombinedData(ReceiveCombinedData msg) {
         this.data = msg.combinedData;
+        return this;
+    }
+
+    private Behavior<Command> onAdaptedCurrentEventResponse(AdaptedCurrentEventResponse wrapped) {
+        SchedulerReporter.CurrentEventResponse response = wrapped.response;
+        CalendarEvent event = response.event.orElse(new CalendarEvent("", DateTime.now(), Duration.ofMinutes(30L), "personal"));
+        getContext().getLog().debug("Got current event in UI");
+
+        DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("MM/dd/YYYY");
+
+        this.date = dateFormatter.format((TemporalAccessor) event.datetime);
+        this.time = DateTimeFormatter.ofPattern("HH:mm").format((TemporalAccessor)event.datetime);
+        this.eventName = event.eventName;
+
         return this;
     }
 
