@@ -40,7 +40,8 @@ public class WebRoutes {
     public WebRoutes(ActorSystem<?> system, ActorRef<StressWebHandler.Command> webHandlerActor) {
         this.webHandlerActor = webHandlerActor;
         this.scheduler = system.scheduler();
-        this.askTimeout = system.settings().config().getDuration("my-app.routes.ask-timeout");
+        this.askTimeout = system.settings().config().getDuration("myApp.routes.ask-timeout");
+
         events = new ArrayList<>();
         events.add(ServerSentEvent.create("1"));
         events.add(ServerSentEvent.create("2"));

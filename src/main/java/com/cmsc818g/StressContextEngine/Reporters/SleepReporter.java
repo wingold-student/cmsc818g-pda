@@ -180,7 +180,6 @@ public class SleepReporter extends Reporter {
             // Create the latest reading only if all data is there
             if (reading.isPresent()) {
 
-                getContext().getLog().info(reading.get().toString());
                 // Can share because it is immutable
                 SleepHours sleepValue = new SleepHours(readingTime, reading.get());
 
