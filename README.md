@@ -3,6 +3,7 @@
 
 ## Requirements
 * Java SDK 18
+* Maven 1.8
 * Python 3
   * sklearn
   * pandas
