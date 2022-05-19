@@ -13,6 +13,8 @@ To quickly install the Python requirements you can create your own virtual envir
 
 Run with `mvn compile exec:exec` in the root directory.
 
+To stop the program, simply hit any key in the terminal that is executing the program.
+
 To view the pages go to "localhost:8080" which will serve a static HTML page. Or "localhost:8080/hello" for just a string message.
 
 To integrate with the front-end, see [this github repo](https://github.com/HyemiSong/PDA-App/)
