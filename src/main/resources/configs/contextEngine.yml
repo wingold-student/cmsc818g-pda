@@ -1,27 +1,27 @@
 HeartRate:
   dbURI: jdbc:sqlite:src/main/resources/EntityDB.db
   table: BloodPressureCuff
-  readRate: 2
+  readRate: 5
 Sleep:
   dbURI: jdbc:sqlite:src/main/resources/EntityDB.db
   table: SmartWatch
-  readRate: 2
+  readRate: 5
 BloodPressure:
   dbURI: jdbc:sqlite:src/main/resources/EntityDB.db
   table: BloodPressureCuff
-  readRate: 2
+  readRate: 5
 Location:
   dbURI: jdbc:sqlite:src/main/resources/EntityDB.db
   table: Phone
-  readRate: 2
+  readRate: 5
 Busyness:
   dbURI: jdbc:sqlite:src/main/resources/EntityDB.db
   table: Phone
-  readRate: 2
+  readRate: 5
 Scheduler:
   dbURI: jdbc:sqlite:src/main/resources/EntityDB.db
   table: Calendar
-  readRate: 2
+  readRate: 5
 Medical:
   dbURI: jdbc:sqlite:src/main/resources/EntityDB.db
   table: MedicalHistory
