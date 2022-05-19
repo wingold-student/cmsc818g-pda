@@ -9,6 +9,7 @@
   * pandas
   * numpy
 
+To quickly install the Python requirements you can create your own virtual environment and do `pip install -r ./requirements.txt` in the root directory.
 
 Run with `mvn compile exec:exec` in the root directory.
 
